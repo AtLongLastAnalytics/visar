@@ -1,0 +1,6 @@
+2025-05-12 17:01:39 | INFO | __main__ | PIPELINE STARTED!
+2025-05-12 17:01:39 | INFO | __main__ | repo_url: https://github.com/username/repo-name
+2025-05-12 17:01:39 | INFO | __main__ | Validating GitHub URL...
+2025-05-12 17:01:39 | INFO | __main__ | Verifying GitHub token...
+2025-05-12 17:01:39 | ERROR | helpers.helper_funcs | GitHub API error: 401
+2025-05-12 17:01:39 | ERROR | helpers.helper_funcs | Invalid GitHub token

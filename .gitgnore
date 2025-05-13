@@ -1,0 +1,25 @@
+# =============================================================================
+# Copyright (c) AtLongLast Analytics LLC
+
+# Licensed under the Apache License, Version 2.0
+
+# Project: https://github.com/AtLongLastAnalytics/visar
+# Author: Robert Long
+# Date: 2025-05
+# Version: 1.0.0
+
+# File: .gitignore
+# Description: This file specificies files/folders that Git should not track.
+#   This invludes the virtual environment dictionaries (.venv) and environment
+#   variable file (.env).
+# =============================================================================
+
+# Exclude environment variable file
+.env
+
+# Exclude the virtual environment folder
+.venv/
+
+# Ignore Python bytecode and cache directories
+__pycache__/
+*.py[cod]

@@ -49,10 +49,3 @@ Write-Host "Installing dependencies from $requirementsFile..."
 pip install -r $requirementsFile
 
 Write-Host "Environment setup complete."
-
-# run unit tests found in the tests folder (in the project root) using unittest
-$testsDir = Join-Path $projectRoot "tests"
-Write-Host "Running unit tests from $testsDir..."
-python -m unittest discover -s $testsDir
-
-Write-Host "Testing complete."

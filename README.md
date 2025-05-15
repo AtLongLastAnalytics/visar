@@ -116,7 +116,7 @@ The VISaR codebase follows a typical src structure.
 
 - Run details are captured in a `.log` file found within the `logs/` directory. If a run fails, this is where you should start troubleshooting.
 
-- The `data/` directory is where you can find the output of completed runs. The files ending with `_vulnids.txt` are the main output containing the vulnerability information.
+- The `data/` directory is where you can find the output of completed runs. The files ending with `_vulnids.csv` are the main output containing the vulnerability information.
 
 - A PowerShell script, `setup.ps1`, is provided in the `scripts/` directory. This script should be ran the first time using VISaR, it creates the virtual environment and installs all dependencies for you.
 

@@ -83,13 +83,13 @@ Example logs for a successful run and a failed run are provided in the [logs dir
 The user provides a GitHub code repository URL to VISaR which then automatically performs a code scan, sends requests to the OSV API and enriches the data before writing vulnerability information to a CSV file. 
 
 **How VISaR works:**
-The workflow is visually described in Figure 2.
+
+The workflow below aligns with the architecture diagram shown Figure 2.
 
   1. OSSF Scorecard scans the repository and generates a summary file.
-  2. A second OSSF Scorecard scan generates a file of known vulnerabilties 
-  (saved temporarily).
+  2. A second OSSF Scorecard scan generates a file of known vulnerabilties (saved temporarily).
   3. A list of vulnerability IDs are harvested from the temporary data file.
-  4. Vulnerability IDs are sent to the OSV API; severity and descriptions are requested.
+  4. Vulnerability IDs are sent to the OSV API with severity and summary description requested.
   5. Key vulnerability information is extracted from the JSON payload. 
   6. The vulnerability IDs, severity, and plain-text summary are compiled into a structured CSV file.
 
@@ -102,26 +102,29 @@ The workflow is visually described in Figure 2.
 <div align="center">
      <p><strong>Figure 2:</strong> VISaR Architecture Diagram</p>
 </div>
+
    
 **Overview of the Project Structure** 
+
 The VISaR codebase follows a typical src structure.
-- The application code is stored in the `src/` directory, with `main.py` being the main entry point.
 
-- The `helpers/` package contains multiple modules, each containing a logical grouping of functions used in the main application.
+- The application code is stored in the `src/` directory, with `main.py` being the entry point.
 
-- Each module within the `helpers` package has an associated test file in the `tests/` directory. Within each test script, a class groups unit tests for a given function in the corresponding module. We aim to have close to 100% test coverage!
+- The `helpers/` package is a collection of modules, each containing a logical grouping of functions used in the main application.
 
-- Run details are captured in a `.log` file found within the `logs` directory. If a run fails, this is where you should start troubleshooting.
+- Each module within the `helpers` package has an associated test file in the `tests/` directory. Within each test script, all of the tests for a given function are grouped into their own class. We aim to have close to 100% test coverage!
 
-- The `data` directory is where you can find the output of completed runs. The files ending with `_vulnerabilties.txt` are the main output containing vulnerability information
+- Run details are captured in a `.log` file found within the `logs/` directory. If a run fails, this is where you should start troubleshooting.
 
-- A PowerShell script, `setup.ps1`, is provided in the `scripts` directory. This script should be ran the first time using VISaR, it creates the virtual environment and installs all dependencies for you.
+- The `data/` directory is where you can find the output of completed runs. The files ending with `_vulnids.txt` are the main output containing the vulnerability information.
+
+- A PowerShell script, `setup.ps1`, is provided in the `/` directory. This script should be ran the first time using VISaR, it creates the virtual environment and installs all dependencies for you.
 
 
 ## 3. Contribute
 Thank you for wanting to contribute and improve VISaR! We welcome contributions from the community and are grateful for your support.
 
-Before contributing, please read our guidelines which describe our code style, testing approach, etc. here: [/docs/Contributing.md](./docs/Contributing.md).
+Before contributing, please read our guidelines which describe our code style and testing approach: [/docs/Contributing.md](./docs/Contributing.md).
 
 By contributing to this project, you agree that your contributions will be licensed under the [Apache-2.0 License](LICENSE.txt).
 

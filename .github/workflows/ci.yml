@@ -52,4 +52,6 @@ jobs:
         run: uv run ruff format --check .
 
       - name: Run tests
+        env:
+          GITHUB_AUTH_TOKEN: ${{ secrets.GITHUB_AUTH_TOKEN }}
         run: uv run python -m unittest discover -s tests -v

@@ -1,0 +1,19 @@
+# =============================================================================
+# Copyright (c) AtLongLast Analytics LLC
+
+# Licensed under the Apache License, Version 2.0
+
+# Project: https://github.com/AtLongLastAnalytics/visar
+# Author: Robert Long
+# Date: 2026-03
+# Version: 1.1.0
+
+# File: repos.txt.example
+# Description: Template for batch scanning. Copy this file to repos.txt and
+#   replace the placeholders with your GitHub repository URLs (one per line).
+#   repos.txt is excluded by .gitignore so your repo list is never committed.
+# =============================================================================
+
+https://github.com/<owner>/<repo1>
+https://github.com/<owner>/<repo2>
+https://github.com/<owner>/<repo3>

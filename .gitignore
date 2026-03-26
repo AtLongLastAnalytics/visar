@@ -1,0 +1,43 @@
+# =============================================================================
+# Copyright (c) AtLongLast Analytics LLC
+
+# Licensed under the Apache License, Version 2.0
+
+# Project: https://github.com/AtLongLastAnalytics/visar
+# Author: Robert Long
+# Date: 2026-03
+# Version: 1.1.0
+
+# File: .gitignore
+# Description: This file specifies files/folders that Git should not track.
+#   This includes the virtual environment directories (.venv) and environment
+#   variable file (.env).
+# =============================================================================
+
+# Exclude environment variable file
+.env
+
+# User-defined repo list — copy repos.txt.example to repos.txt and add your own
+repos.txt
+
+# Local Claude Code memory (never commit)
+.claude/
+
+# Exclude the virtual environment folder
+.venv/
+
+# Ignore Python bytecode and cache directories
+__pycache__/
+*.py[cod]
+
+# Scan outputs and generated dashboard — rebuilt locally, not committed
+data/*
+!data/example-*
+
+# Local run logs — keep only example logs in version control
+logs/visar_*.log
+
+# Local development tracking (not for repo)
+CHANGELOG.md
+
+# Note: uv.lock should be committed — it pins exact dependency versions

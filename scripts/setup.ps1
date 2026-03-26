@@ -5,47 +5,35 @@
 #
 # Project: https://github.com/AtLongLastAnalytics/visar
 # Author: Robert Long
-# Date: 2025-05
-# Version: 1.0.0
+# Date: 2026-03
+# Version: 1.1.0
 #
 # File: setup.ps1
-# Description: This PowerShell script (located in the 'scripts' folder) creates
-#   a Python virtual environment in the project root, upgrades pip, installs
-#   dependencies from the root-level requirements.txt, and runs unit tests from
-#   the root-level tests folder.
+# Description: This PowerShell script (located in the 'scripts' folder) uses
+#   uv to create a Python virtual environment and install all project
+#   dependencies from pyproject.toml. Run once from the project root before
+#   first use.
+#
+# Pre-requisite: uv must be installed.
+#   Install: powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"
 # =============================================================================
 
-# get the directory of the current script (setup.ps1 is in the 'scripts' folder)
-$scriptDir = $PSScriptRoot
-
 # define the project root as the parent directory of the 'scripts' folder
+$scriptDir = $PSScriptRoot
 $projectRoot = (Resolve-Path (Join-Path $scriptDir "..")).Path
 
 Write-Host "Project Root: $projectRoot"
 
-# define the virtual environment (.venv) path in the project root
-$venvPath = Join-Path $projectRoot ".venv"
-
-# if virtual environment exists, exit the script. If it doesn't, create it
-if (Test-Path -Path $venvPath) {
-    Write-Host "Virtual environment already exists at $venvPath. Exiting."
-    exit
+# verify uv is available
+if (-not (Get-Command uv -ErrorAction SilentlyContinue)) {
+    Write-Host "Error: uv is not installed."
+    Write-Host "Install it with: powershell -ExecutionPolicy ByPass -c `"irm https://astral.sh/uv/install.ps1 | iex`""
+    exit 1
 }
 
-Write-Host "Creating virtual environment at $venvPath..."
-python -m venv $venvPath
-
-# activate the virtual environment
-Write-Host "Activating virtual environment..."
-. (Join-Path $venvPath "Scripts\Activate.ps1")
-
-# upgrade pip to the latest version
-Write-Host "Upgrading pip..."
-python -m pip install --upgrade pip
-
-# install dependencies from the root-level requirements.txt file
-$requirementsFile = Join-Path $projectRoot "requirements.txt"
-Write-Host "Installing dependencies from $requirementsFile..."
-pip install -r $requirementsFile
+# uv sync creates the .venv and installs all dependencies from pyproject.toml
+Write-Host "Running uv sync..."
+Set-Location $projectRoot
+uv sync
 
 Write-Host "Environment setup complete."

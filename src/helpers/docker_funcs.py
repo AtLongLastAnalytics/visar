@@ -5,8 +5,8 @@ Licensed under the Apache License, Version 2.0
 
 Project: https://github.com/AtLongLastAnalytics/visar
 Author: Robert Long
-Date: 2025-05
-Version: 1.0.0
+Date: 2026-03
+Version: 1.1.0
 
 File: docker_funcs.py
 Description: This module contains functions to:
@@ -16,6 +16,8 @@ Description: This module contains functions to:
 """
 
 # import standard libraries
+from pathlib import Path
+from typing import List, Optional
 import subprocess
 import docker
 
@@ -72,12 +74,13 @@ def check_dockerimage_exists(image_name: str) -> bool:
     except docker.errors.APIError as e:
         logger.error("Docker API error: %s", e)
         return False
+    finally:
+        client.close()
 
 
-def format_docker_command(repo_url: str,
-                          github_token: str,
-                          container_name: str,
-                          show_details: bool = False) -> str:
+def format_docker_command(
+    repo_url: str, github_token: str, container_name: str, show_details: bool = False
+) -> List[str]:
     """
     Format a Docker command using the provided parameters.
 
@@ -94,52 +97,50 @@ def format_docker_command(repo_url: str,
             Defaults to False.
 
     Returns:
-        str: The constructed Docker command.
+        List[str]: The constructed Docker command as a list of arguments.
     """
-    base_command = (
-        f"docker run -e GITHUB_AUTH_TOKEN={github_token} {container_name} "
-        f"--repo {repo_url}"
-    )
+    command = [
+        "docker",
+        "run",
+        "--rm",
+        "-e",
+        f"GITHUB_AUTH_TOKEN={github_token}",
+        container_name,
+        "--repo",
+        repo_url,
+    ]
 
     if show_details:
-        base_command += " --show-details --checks Vulnerabilities"
+        command += ["--show-details", "--checks", "Vulnerabilities"]
 
-    return base_command
+    return command
 
 
-def run_docker_command(command: str) -> bool:
+def run_docker_command(command: List[str], output_file: Optional[Path] = None) -> bool:
     """
     Execute the specified Docker command using subprocess.
 
-    This function runs a Docker command using subprocess. If the
-    command executes successfully (i.e., returns a 0 exit code), the function
-    logs success. In case of errors such as subprocess.CalledProcessError,
-    OSError, or any other exceptions, the errors are logged.
+    This function runs a Docker command using subprocess. If the command
+    executes successfully, stdout is optionally written to output_file.
+    In case of errors such as subprocess.CalledProcessError, OSError, or any
+    other exceptions, the errors are logged.
 
     Args:
-        command (str): The Docker command to be executed.
+        command (List[str]): The Docker command to be executed as a list of
+            arguments.
+        output_file (Optional[Path]): If provided, stdout is written to this
+            file path. Defaults to None.
 
     Returns:
         bool: True if executed successfully; False if an error occurred.
     """
     try:
         logger.debug("Running Docker command")
-        result = subprocess.run(command, shell=True, text=True,
-                                capture_output=True, check=True)
-
-        if result.returncode == 0:
-            logger.debug("Docker command executed successfully")
-            return True
-        else:
-            logger.error(
-                "Docker command failed with return code %s",
-                result.returncode
-            )
-            logger.error(
-                "Error Output: %s",
-                result.stderr
-            )
-            return False
+        result = subprocess.run(command, text=True, capture_output=True, check=True)
+        if output_file is not None:
+            output_file.write_text(result.stdout, encoding="utf-8")
+        logger.debug("Docker command executed successfully")
+        return True
 
     except subprocess.CalledProcessError as e:
         logger.exception("Subprocess error - Docker command execution: %s", e)

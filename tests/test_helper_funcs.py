@@ -5,8 +5,8 @@ Licensed under the Apache License, Version 2.0
 
 # Project: https://github.com/AtLongLastAnalytics/visar
 Author: Robert Long
-Date: 2025-05
-Version: 1.0.0
+Date: 2026-03
+Version: 1.1.0
 
 File: test-helper_funcs.py
 Description: This module contains a test suite for functions in the
@@ -21,16 +21,17 @@ from pathlib import Path
 import tempfile
 import csv
 import datetime
-import os
 
-# Import standard libraries
+# import standard libraries
 import sys
 import logging
 
 logging.disable(logging.CRITICAL)
 
-# Add the src/ directory to sys.path to import the module
-sys.path.insert(0, './src')
+# add the src/ directory to sys.path to import the module
+sys.path.insert(0, "./src")
+
+import json
 
 from helpers.helper_funcs import (
     check_datafolder_exists,
@@ -39,10 +40,13 @@ from helpers.helper_funcs import (
     format_filename,
     merge_items_with_slash,
     prepend_line,
+    read_batch_file,
     retry_call,
     validate_github_url,
     verify_github_token,
-    write_vulnerability_details_to_csv)
+    write_vulnerability_details_to_csv,
+    write_vulnerability_details_to_json,
+)
 
 from config import GITHUB_CONFIG
 
@@ -51,52 +55,35 @@ class TestCheckDataFolderExists(unittest.TestCase):
     """
     Test cases for the check_datafolder_exists function.
     """
-    @patch("os.path.exists")
-    @patch("os.makedirs")
-    @patch("os.getcwd", return_value="/fake/home/current")
-    def test_data_folder_already_exists(
-        self, mock_getcwd, mock_makedirs, mock_exists
-    ):
-        """
-        Folder exists. Does not need to call os.makedirs.
-        """
-        # Setup the mock to indicate that the folder exists.
-        mock_exists.return_value = True
 
-        # Call the function under test.
+    @patch("helpers.helper_funcs.DATA_DIR")
+    def test_data_folder_already_exists(self, mock_data_dir):
+        """
+        Folder exists. Does not need to call mkdir.
+        """
+        mock_data_dir.exists.return_value = True
+
         check_datafolder_exists()
 
-        # Assert that os.makedirs was never invoked.
-        mock_makedirs.assert_not_called()
+        mock_data_dir.mkdir.assert_not_called()
 
-    @patch("os.path.exists")
-    @patch("os.makedirs")
-    @patch("os.getcwd", return_value="/fake/home/current")
-    def test_data_folder_created_when_missing(
-        self, mock_getcwd, mock_makedirs, mock_exists
-    ):
+    @patch("helpers.helper_funcs.DATA_DIR")
+    def test_data_folder_created_when_missing(self, mock_data_dir):
         """
-        Folder does not exist. Attempt to create the folder using os.makedirs.
+        Folder does not exist. mkdir is called with parents=True, exist_ok=True.
         """
-        # Setup the mock to indicate that the folder does not exist.
-        mock_exists.return_value = False
+        mock_data_dir.exists.return_value = False
 
-        # Call the function under test.
         check_datafolder_exists()
 
-        # The function computes the data folder by determining the current
-        # working directory's parent and joining it with "data".
-        parent_dir = os.path.abspath(os.path.join("/fake/home/current", ".."))
-        expected_path = os.path.join(parent_dir, "data")
-
-        # Assert that os.makedirs was called once with the expected path.
-        mock_makedirs.assert_called_once_with(expected_path)
+        mock_data_dir.mkdir.assert_called_once_with(parents=True, exist_ok=True)
 
 
 class TestExitWithError(unittest.TestCase):
     """
     Test cases for the exit_with_error function.
     """
+
     @patch("helpers.helper_funcs.logger.error")
     @patch("helpers.helper_funcs.sys.exit")
     def test_exitwitherror_defaultcode(self, mock_exit, mock_logger_error):
@@ -105,12 +92,12 @@ class TestExitWithError(unittest.TestCase):
         """
         error_message = "Test error"
 
-        # Call the function with the default exit code.
+        # call the function with the default exit code.
         exit_with_error(error_message)
 
-        # Assert that logger.error was called once with relevant error message.
+        # assert that logger.error was called once with relevant error message.
         mock_logger_error.assert_called_once_with(error_message)
-        # Assert that sys.exit was called once with the default code 1.
+        # assert that sys.exit was called once with the default code 1.
         mock_exit.assert_called_once_with(1)
 
     @patch("helpers.helper_funcs.logger.error")
@@ -122,12 +109,12 @@ class TestExitWithError(unittest.TestCase):
         error_message = "Another test error"
         custom_code = 2
 
-        # Call the function with a custom exit code.
+        # call the function with a custom exit code.
         exit_with_error(error_message, custom_code)
 
-        # Assert logger.error is called with the proper message.
+        # assert logger.error is called with the proper message.
         mock_logger_error.assert_called_once_with(error_message)
-        # Assert sys.exit is called with the custom exit code.
+        # assert sys.exit is called with the custom exit code.
         mock_exit.assert_called_once_with(custom_code)
 
 
@@ -135,6 +122,7 @@ class TestExtractVulnerabilityIds(unittest.TestCase):
     """
     Test cases for the extract_vulnerability_ids function.
     """
+
     def test_no_ids_found(self):
         """
         When no vulnerability IDs are in the input, an empty list is returned.
@@ -168,13 +156,15 @@ class TestExtractVulnerabilityIds(unittest.TestCase):
         Multiple vulnerability IDs in the input string are all correctly
         extracted and that their order is preserved.
         """
-        input_str = ("Multiple issues: PYSEC-QWER-12, GHSA-ZXCV-ASDF-QWER, "
-                     "and PYSEC-IOPL-34567 / were detected.")
+        input_str = (
+            "Multiple issues: PYSEC-QWER-12, GHSA-ZXCV-ASDF-QWER, "
+            "and PYSEC-IOPL-34567 / were detected."
+        )
         # Expected matches include the optional trailing ' /' on last PYSEC ID.
         expected = [
-                "PYSEC-QWER-12",
-                "GHSA-ZXCV-ASDF-QWER",
-                "PYSEC-IOPL-34567 /",
+            "PYSEC-QWER-12",
+            "GHSA-ZXCV-ASDF-QWER",
+            "PYSEC-IOPL-34567 /",
         ]
         result = extract_vulnerability_ids(input_str)
         self.assertEqual(result, expected)
@@ -190,7 +180,7 @@ class TestExtractVulnerabilityIds(unittest.TestCase):
         self.assertEqual(result, expected)
 
 
-# Define a custom datetime subclass that returns a fixed date.
+# define a custom datetime subclass that returns a fixed date.
 class FixedDatetime(datetime.datetime):
     @classmethod
     def today(cls):
@@ -201,7 +191,8 @@ class TestFormatFilename(unittest.TestCase):
     """
     Test cases for the format_filename function.
     """
-    @patch('helpers.helper_funcs.datetime', new=FixedDatetime)
+
+    @patch("helpers.helper_funcs.datetime", new=FixedDatetime)
     def test_formatfilename_basic(self):
         """
         A standard GitHub repository URL is correctly formatted.
@@ -212,7 +203,7 @@ class TestFormatFilename(unittest.TestCase):
         result = format_filename(repo_url)
         self.assertEqual(result, expected_filename)
 
-    @patch('helpers.helper_funcs.datetime', new=FixedDatetime)
+    @patch("helpers.helper_funcs.datetime", new=FixedDatetime)
     def test_formatfilename_trailingslash(self):
         """
         A GitHub URL with a trailing slash is formatted correctly.
@@ -223,7 +214,7 @@ class TestFormatFilename(unittest.TestCase):
         result = format_filename(repo_url)
         self.assertEqual(result, expected_filename)
 
-    @patch('helpers.helper_funcs.datetime', new=FixedDatetime)
+    @patch("helpers.helper_funcs.datetime", new=FixedDatetime)
     def test_formatfilename_multiplesegments(self):
         """
         A GitHub URL with multiple path segments is formatted
@@ -235,7 +226,7 @@ class TestFormatFilename(unittest.TestCase):
         result = format_filename(repo_url)
         self.assertEqual(result, expected_filename)
 
-    @patch('helpers.helper_funcs.datetime', new=FixedDatetime)
+    @patch("helpers.helper_funcs.datetime", new=FixedDatetime)
     def test_formatfilename_emptypath(self):
         """
         A URL with no repository path returns the date only.
@@ -251,6 +242,7 @@ class TestMergeItemsWithSlash(unittest.TestCase):
     """
     Test cases for the merge_items_with_slash function.
     """
+
     def test_mergeitemswithslash_emptylist(self):
         """
         An empty list returns an empty list.
@@ -310,23 +302,24 @@ class TestPrependLine(unittest.TestCase):
     """
     Test cases for the format_filename function.
     """
+
     def test_prependline_nonemptyfile(self):
         """
         A line is appended to the top of a non-empty file.
         """
-        # Create a temporary directory and file
+        # create a temporary directory and file
         with tempfile.TemporaryDirectory() as tmp_dir:
             file_path = Path(tmp_dir) / "test_file.txt"
             original_content = "original content"
-            # Write initial content to the file.
+            # write initial content to the file.
             file_path.write_text(original_content)
 
-            # The line to prepend.
+            # the line to prepend.
             prepend_text = "NEW LINE"
-            # Call the function to prepend the line.
+            # call the function to prepend the line.
             prepend_line(file_path, prepend_text)
 
-            # Read back the file content.
+            # read back the file content.
             updated_content = file_path.read_text()
             expected = f"{prepend_text}\n{original_content}"
             self.assertEqual(updated_content, expected)
@@ -335,10 +328,10 @@ class TestPrependLine(unittest.TestCase):
         """
         A line is appended to the top of an empty file.
         """
-        # Create a temporary directory and file.
+        # create a temporary directory and file.
         with tempfile.TemporaryDirectory() as tmp_dir:
             file_path = Path(tmp_dir) / "empty_file.txt"
-            # Create an empty file.
+            # create an empty file.
             file_path.write_text("")
 
             prepend_text = "HEADER"
@@ -353,14 +346,14 @@ class TestRetryCall(unittest.TestCase):
     """
     Test cases for the retry_call function.
     """
+
     @patch("helpers.helper_funcs.time.sleep")
     @patch("helpers.helper_funcs.logger.warning")
-    def test_retrycall_immediatesuccess(
-        self, mock_logger_warning, mock_sleep
-    ):
+    def test_retrycall_immediatesuccess(self, mock_logger_warning, mock_sleep):
         """
         Result is returned immediately when the function succeeds on first try.
         """
+
         def successful_func():
             return "success"
 
@@ -371,14 +364,12 @@ class TestRetryCall(unittest.TestCase):
 
     @patch("helpers.helper_funcs.time.sleep")
     @patch("helpers.helper_funcs.logger.warning")
-    def test_retrycall_eventualsuccess(
-        self, mock_logger_warning, mock_sleep
-    ):
+    def test_retrycall_eventualsuccess(self, mock_logger_warning, mock_sleep):
         """
         Retries once after failure and then succeeds.
         """
         mock_func = Mock(side_effect=[Exception("fail"), "eventual success"])
-        mock_func.__name__ = "mock_function"  # Fix: Assign a name for logging
+        mock_func.__name__ = "mock_function"  # fix: Assign a name for logging
 
         result = retry_call(mock_func)
         self.assertEqual(result, "eventual success")
@@ -393,12 +384,12 @@ class TestRetryCall(unittest.TestCase):
         Last exception is raised when all attempts fail.
         """
         mock_func = Mock(side_effect=Exception("always fails"))
-        mock_func.__name__ = "mock_function"  # Fix: Assign a name for logging
+        mock_func.__name__ = "mock_function"  # fix: Assign a name for logging
 
         with self.assertRaises(Exception) as context:
             retry_call(mock_func, retries=3, delay=0)
 
-        # Fix: Ensure exception message matches
+        # fix: Ensure exception message matches
         self.assertEqual(str(context.exception), "always fails")
         self.assertEqual(mock_logger_warning.call_count, 3)
         self.assertEqual(mock_sleep.call_count, 2)
@@ -409,7 +400,8 @@ class TestValidateGithubURL(unittest.TestCase):
     """
     Test cases for the validate_github_url function.
     """
-    @patch('helpers.helper_funcs.logger.error')
+
+    @patch("helpers.helper_funcs.logger.error")
     def test_validategithuburl_basic(self, mock_logger_error):
         """
         Return True for a valid GitHub repo URL with basic format.
@@ -418,7 +410,7 @@ class TestValidateGithubURL(unittest.TestCase):
         self.assertTrue(validate_github_url(url))
         mock_logger_error.assert_not_called()
 
-    @patch('helpers.helper_funcs.logger.error')
+    @patch("helpers.helper_funcs.logger.error")
     def test_validategithuburl_trailingslash(self, mock_logger_error):
         """
         Return True for a valid Github repo URL with a trailing slash.
@@ -427,7 +419,7 @@ class TestValidateGithubURL(unittest.TestCase):
         self.assertTrue(validate_github_url(url))
         mock_logger_error.assert_not_called()
 
-    @patch('helpers.helper_funcs.logger.error')
+    @patch("helpers.helper_funcs.logger.error")
     def test_validategithuburl_hyphensandunderscores(self, mock_logger_error):
         """
         Return True for a valid GitHub repo URL with hyphens and underscores.
@@ -437,68 +429,56 @@ class TestValidateGithubURL(unittest.TestCase):
         self.assertTrue(validate_github_url(url))
         mock_logger_error.assert_not_called()
 
-    @patch('helpers.helper_funcs.logger.error')
+    @patch("helpers.helper_funcs.logger.error")
     def test_validategithuburl_httpprotocol(self, mock_logger_error):
         """
         Return False for a Github repo URL using http and not https.
         """
         url = "http://github.com/username/repository"
         self.assertFalse(validate_github_url(url))
-        mock_logger_error.assert_called_once_with(
-            "Invalid GitHub URL: %s", url
-        )
+        mock_logger_error.assert_called_once_with("Invalid GitHub URL: %s", url)
 
-    @patch('helpers.helper_funcs.logger.error')
+    @patch("helpers.helper_funcs.logger.error")
     def test_validategithuburl_wrongdomain(self, mock_logger_error):
         """
         Return False for a URL with a domain other than github.
         """
         url = "https://gitlab.com/username/repository"
         self.assertFalse(validate_github_url(url))
-        mock_logger_error.assert_called_once_with(
-            "Invalid GitHub URL: %s", url
-        )
+        mock_logger_error.assert_called_once_with("Invalid GitHub URL: %s", url)
 
-    @patch('helpers.helper_funcs.logger.error')
+    @patch("helpers.helper_funcs.logger.error")
     def test_validategithuburl_missingrepository(self, mock_logger_error):
         """
         Return Flase for a URL with a username but missing the repository.
         """
         url = "https://github.com/username"
         self.assertFalse(validate_github_url(url))
-        mock_logger_error.assert_called_once_with(
-            "Invalid GitHub URL: %s", url
-        )
+        mock_logger_error.assert_called_once_with("Invalid GitHub URL: %s", url)
 
-    @patch('helpers.helper_funcs.logger.error')
+    @patch("helpers.helper_funcs.logger.error")
     def test_validategithuburl_extrapathsegment(self, mock_logger_error):
         """
         Return False for a URL with extra path segments after the repository.
         """
         url = "https://github.com/username/repository/extra"
         self.assertFalse(validate_github_url(url))
-        mock_logger_error.assert_called_once_with(
-            "Invalid GitHub URL: %s", url
-        )
+        mock_logger_error.assert_called_once_with("Invalid GitHub URL: %s", url)
 
-    @patch('helpers.helper_funcs.logger.error')
+    @patch("helpers.helper_funcs.logger.error")
     def test_validategithuburl_emptyurl(self, mock_logger_error):
         """
         Return False for an empty URL.
         """
         url = ""
         self.assertFalse(validate_github_url(url))
-        mock_logger_error.assert_called_once_with(
-            "Invalid GitHub URL: %s", url
-        )
+        mock_logger_error.assert_called_once_with("Invalid GitHub URL: %s", url)
 
 
 class TestVerifyGithubToken(unittest.TestCase):
-    @patch('helpers.helper_funcs.requests.get')
-    @patch('helpers.helper_funcs.logger.error')
-    def test_verifygithubtoken_valid(
-        self, mock_logger_error, mock_requests_get
-    ):
+    @patch("helpers.helper_funcs.requests.get")
+    @patch("helpers.helper_funcs.logger.error")
+    def test_verifygithubtoken_valid(self, mock_logger_error, mock_requests_get):
         """
         Return True when the token is valid and has "public_repo" scope.
         """
@@ -506,7 +486,7 @@ class TestVerifyGithubToken(unittest.TestCase):
         # Prepare a mock response with status code 200 and the required scope
         response_mock = Mock()
         response_mock.status_code = 200
-        response_mock.headers = {'X-OAuth-Scopes': "repo, public_repo, gist"}
+        response_mock.headers = {"X-OAuth-Scopes": "repo, public_repo, gist"}
         mock_requests_get.return_value = response_mock
 
         result = verify_github_token(token)
@@ -514,19 +494,17 @@ class TestVerifyGithubToken(unittest.TestCase):
         mock_logger_error.assert_not_called()
 
         expected_headers = {
-            'Authorization': f'token {token}',
-            'Accept': 'application/vnd.github.v3+json'
+            "Authorization": f"token {token}",
+            "Accept": "application/vnd.github.v3+json",
         }
         expected_url = f"{GITHUB_CONFIG['BASE_URL']}/user"
         mock_requests_get.assert_called_once_with(
             expected_url, headers=expected_headers
         )
 
-    @patch('helpers.helper_funcs.requests.get')
-    @patch('helpers.helper_funcs.logger.error')
-    def test_verifygithubtoken_missingscope(
-        self, mock_logger_error, mock_requests_get
-    ):
+    @patch("helpers.helper_funcs.requests.get")
+    @patch("helpers.helper_funcs.logger.error")
+    def test_verifygithubtoken_missingscope(self, mock_logger_error, mock_requests_get):
         """
         Return False when the response is 200 but is missing the "public_repo"
         scope.
@@ -535,7 +513,7 @@ class TestVerifyGithubToken(unittest.TestCase):
         response_mock = Mock()
         response_mock.status_code = 200
         # most common isse is for token ton be missing 'public_repo' scope
-        response_mock.headers = {'X-OAuth-Scopes': "repo, gist"}
+        response_mock.headers = {"X-OAuth-Scopes": "repo, gist"}
         mock_requests_get.return_value = response_mock
 
         result = verify_github_token(token)
@@ -544,11 +522,9 @@ class TestVerifyGithubToken(unittest.TestCase):
             "GitHub token missing 'public_repo' scope"
         )
 
-    @patch('helpers.helper_funcs.requests.get')
-    @patch('helpers.helper_funcs.logger.error')
-    def test_verifygithubtoken_unauthorized(
-        self, mock_logger_error, mock_requests_get
-    ):
+    @patch("helpers.helper_funcs.requests.get")
+    @patch("helpers.helper_funcs.logger.error")
+    def test_verifygithubtoken_unauthorized(self, mock_logger_error, mock_requests_get):
         """
         Return False when the API returns a 401 Unauthorized.
         """
@@ -562,8 +538,8 @@ class TestVerifyGithubToken(unittest.TestCase):
         self.assertFalse(result)
         mock_logger_error.assert_called_once_with("GitHub API error: %s", 401)
 
-    @patch('helpers.helper_funcs.requests.get')
-    @patch('helpers.helper_funcs.logger.error')
+    @patch("helpers.helper_funcs.requests.get")
+    @patch("helpers.helper_funcs.logger.error")
     def test_verifygithubtoken_requestexception(
         self, mock_logger_error, mock_requests_get
     ):
@@ -571,6 +547,7 @@ class TestVerifyGithubToken(unittest.TestCase):
         Return False and logs an error when a RequestException occurs.
         """
         import requests
+
         token = "any_token"
         mock_requests_get.side_effect = requests.exceptions.RequestException(
             "Network error"
@@ -587,6 +564,7 @@ class TestWriteVulnerabilityDetailsToCSV(unittest.TestCase):
     """
     Test cases for the write_vulnerability_details_to_csv function.
     """
+
     def test_writevulnerabilitydetailstocsv_success(self):
         """
         Successfully writes vulnerability data to a CSV file.
@@ -608,7 +586,7 @@ class TestWriteVulnerabilityDetailsToCSV(unittest.TestCase):
         expected_rows = [
             ["VulnerabilityID", "Severity", "Details"],
             ["VULN-001", "High", "Detail for VULN-001"],
-            ["VULN-002", "Medium", "Detail for VULN-002"]
+            ["VULN-002", "Medium", "Detail for VULN-002"],
         ]
 
         self.assertEqual(rows, expected_rows)
@@ -622,7 +600,7 @@ class TestWriteVulnerabilityDetailsToCSV(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp_dir:
             output_file = Path(tmp_dir) / "empty_output.csv"
             write_vulnerability_details_to_csv(
-               vuln_ids, details, severities, output_file
+                vuln_ids, details, severities, output_file
             )
 
             with output_file.open("r", encoding="utf-8") as f:
@@ -634,5 +612,244 @@ class TestWriteVulnerabilityDetailsToCSV(unittest.TestCase):
         self.assertEqual(rows, expected_rows)
 
 
-if __name__ == '__main__':
+class TestReadBatchFile(unittest.TestCase):
+    """
+    Test cases for the read_batch_file function.
+    """
+
+    def test_valid_urls_returned(self):
+        """
+        Returns all valid GitHub URLs from the file.
+        """
+        with tempfile.NamedTemporaryFile(
+            mode="w", suffix=".txt", delete=False, encoding="utf-8"
+        ) as f:
+            f.write("https://github.com/user/repo1\n")
+            f.write("https://github.com/user/repo2\n")
+            tmp_path = f.name
+        try:
+            result = read_batch_file(tmp_path)
+            self.assertEqual(
+                result,
+                ["https://github.com/user/repo1", "https://github.com/user/repo2"],
+            )
+        finally:
+            Path(tmp_path).unlink(missing_ok=True)
+
+    def test_blank_lines_skipped(self):
+        """
+        Blank lines between URLs are ignored.
+        """
+        with tempfile.NamedTemporaryFile(
+            mode="w", suffix=".txt", delete=False, encoding="utf-8"
+        ) as f:
+            f.write("https://github.com/user/repo1\n")
+            f.write("\n")
+            f.write("   \n")
+            f.write("https://github.com/user/repo2\n")
+            tmp_path = f.name
+        try:
+            result = read_batch_file(tmp_path)
+            self.assertEqual(
+                result,
+                ["https://github.com/user/repo1", "https://github.com/user/repo2"],
+            )
+        finally:
+            Path(tmp_path).unlink(missing_ok=True)
+
+    def test_comment_lines_skipped(self):
+        """
+        Lines starting with '#' are silently skipped.
+        """
+        with tempfile.NamedTemporaryFile(
+            mode="w", suffix=".txt", delete=False, encoding="utf-8"
+        ) as f:
+            f.write("# This is a comment\n")
+            f.write("https://github.com/user/repo1\n")
+            f.write("# Another comment\n")
+            tmp_path = f.name
+        try:
+            result = read_batch_file(tmp_path)
+            self.assertEqual(result, ["https://github.com/user/repo1"])
+        finally:
+            Path(tmp_path).unlink(missing_ok=True)
+
+    def test_invalid_urls_skipped(self):
+        """
+        Invalid URLs are skipped; valid URLs in the same file are returned.
+        """
+        with tempfile.NamedTemporaryFile(
+            mode="w", suffix=".txt", delete=False, encoding="utf-8"
+        ) as f:
+            f.write("not-a-url\n")
+            f.write("https://github.com/user/repo1\n")
+            tmp_path = f.name
+        try:
+            result = read_batch_file(tmp_path)
+            self.assertEqual(result, ["https://github.com/user/repo1"])
+        finally:
+            Path(tmp_path).unlink(missing_ok=True)
+
+    def test_all_invalid_returns_empty_list(self):
+        """
+        A file with only invalid URLs returns an empty list.
+        """
+        with tempfile.NamedTemporaryFile(
+            mode="w", suffix=".txt", delete=False, encoding="utf-8"
+        ) as f:
+            f.write("not-a-url\n")
+            f.write("http://example.com\n")
+            tmp_path = f.name
+        try:
+            result = read_batch_file(tmp_path)
+            self.assertEqual(result, [])
+        finally:
+            Path(tmp_path).unlink(missing_ok=True)
+
+    def test_empty_file_returns_empty_list(self):
+        """
+        An empty file returns an empty list.
+        """
+        with tempfile.NamedTemporaryFile(
+            mode="w", suffix=".txt", delete=False, encoding="utf-8"
+        ) as f:
+            tmp_path = f.name
+        try:
+            result = read_batch_file(tmp_path)
+            self.assertEqual(result, [])
+        finally:
+            Path(tmp_path).unlink(missing_ok=True)
+
+    def test_file_not_found_raises(self):
+        """
+        A missing file raises FileNotFoundError.
+        """
+        with self.assertRaises(FileNotFoundError):
+            read_batch_file("/nonexistent/path/batch.txt")
+
+    def test_mixed_line_types(self):
+        """
+        A file with comments, blank lines, valid and invalid URLs is handled
+        correctly.
+        """
+        with tempfile.NamedTemporaryFile(
+            mode="w", suffix=".txt", delete=False, encoding="utf-8"
+        ) as f:
+            f.write("# Scan list\n")
+            f.write("\n")
+            f.write("https://github.com/user/repo1\n")
+            f.write("not-valid\n")
+            f.write("# end\n")
+            f.write("https://github.com/user/repo2\n")
+            tmp_path = f.name
+        try:
+            result = read_batch_file(tmp_path)
+            self.assertEqual(
+                result,
+                ["https://github.com/user/repo1", "https://github.com/user/repo2"],
+            )
+        finally:
+            Path(tmp_path).unlink(missing_ok=True)
+
+
+class TestWriteVulnerabilityDetailsToJson(unittest.TestCase):
+    """
+    Test cases for the write_vulnerability_details_to_json function.
+    """
+
+    def test_writes_correct_json_structure(self):
+        """
+        Output file is valid JSON with the correct keys and values.
+        """
+        vuln_ids = ["GHSA-1111-2222-3333"]
+        details = ["A critical vulnerability."]
+        severities = ["CRITICAL"]
+
+        with tempfile.NamedTemporaryFile(suffix=".json", delete=False) as f:
+            out_path = Path(f.name)
+        try:
+            write_vulnerability_details_to_json(vuln_ids, details, severities, out_path)
+            with out_path.open("r", encoding="utf-8") as f:
+                data = json.load(f)
+            self.assertEqual(len(data), 1)
+            self.assertEqual(data[0]["VulnerabilityID"], "GHSA-1111-2222-3333")
+            self.assertEqual(data[0]["Severity"], "CRITICAL")
+            self.assertEqual(data[0]["Details"], "A critical vulnerability.")
+        finally:
+            out_path.unlink(missing_ok=True)
+
+    def test_sorted_by_severity(self):
+        """
+        Rows are sorted CRITICAL → HIGH → MODERATE → LOW.
+        """
+        vuln_ids = ["LOW-1", "CRITICAL-1", "HIGH-1", "MODERATE-1"]
+        details = ["d", "d", "d", "d"]
+        severities = ["LOW", "CRITICAL", "HIGH", "MODERATE"]
+
+        with tempfile.NamedTemporaryFile(suffix=".json", delete=False) as f:
+            out_path = Path(f.name)
+        try:
+            write_vulnerability_details_to_json(vuln_ids, details, severities, out_path)
+            with out_path.open("r", encoding="utf-8") as f:
+                data = json.load(f)
+            self.assertEqual(
+                [row["Severity"] for row in data],
+                ["CRITICAL", "HIGH", "MODERATE", "LOW"],
+            )
+        finally:
+            out_path.unlink(missing_ok=True)
+
+    def test_empty_input_writes_empty_array(self):
+        """
+        Empty input produces an empty JSON array.
+        """
+        with tempfile.NamedTemporaryFile(suffix=".json", delete=False) as f:
+            out_path = Path(f.name)
+        try:
+            write_vulnerability_details_to_json([], [], [], out_path)
+            with out_path.open("r", encoding="utf-8") as f:
+                data = json.load(f)
+            self.assertEqual(data, [])
+        finally:
+            out_path.unlink(missing_ok=True)
+
+    def test_unknown_severity_sorts_last(self):
+        """
+        Unknown severity values sort after LOW.
+        """
+        vuln_ids = ["UNKNOWN-1", "LOW-1"]
+        details = ["d", "d"]
+        severities = ["UNKNOWN", "LOW"]
+
+        with tempfile.NamedTemporaryFile(suffix=".json", delete=False) as f:
+            out_path = Path(f.name)
+        try:
+            write_vulnerability_details_to_json(vuln_ids, details, severities, out_path)
+            with out_path.open("r", encoding="utf-8") as f:
+                data = json.load(f)
+            self.assertEqual(data[0]["Severity"], "LOW")
+            self.assertEqual(data[1]["Severity"], "UNKNOWN")
+        finally:
+            out_path.unlink(missing_ok=True)
+
+    def test_newlines_preserved_in_details(self):
+        """
+        Newlines in details are preserved in the JSON output.
+        """
+        vuln_ids = ["GHSA-1111-2222-3333"]
+        details = ["Line one.\nLine two."]
+        severities = ["LOW"]
+
+        with tempfile.NamedTemporaryFile(suffix=".json", delete=False) as f:
+            out_path = Path(f.name)
+        try:
+            write_vulnerability_details_to_json(vuln_ids, details, severities, out_path)
+            with out_path.open("r", encoding="utf-8") as f:
+                data = json.load(f)
+            self.assertIn("\n", data[0]["Details"])
+        finally:
+            out_path.unlink(missing_ok=True)
+
+
+if __name__ == "__main__":
     unittest.main()

@@ -1,0 +1,57 @@
+# =============================================================================
+# Copyright (c) AtLongLast Analytics LLC
+
+# Licensed under the Apache License, Version 2.0
+
+# Project: https://github.com/AtLongLastAnalytics/visar
+# Author: Robert Long
+# Date: 2026-03
+# Version: 1.1.0
+
+# File: .github/workflows/ci.yml
+# Description: Continuous integration pipeline. Runs on every push and pull
+#   request to main, and can be triggered manually via workflow_dispatch.
+#   Steps: checkout → install deps (uv) → lint → format check → unit tests.
+# =============================================================================
+
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:  # allow manual runs from the GitHub Actions UI
+
+permissions:
+  contents: read  # minimum permissions — read-only access to repo contents
+
+jobs:
+  test:
+    name: Test
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up uv
+        # installs uv and the specified Python version
+        uses: astral-sh/setup-uv@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        # --frozen ensures uv.lock is respected and not updated during CI
+        run: uv sync --frozen
+
+      - name: Lint with ruff
+        run: uv run ruff check .
+
+      - name: Check formatting with ruff
+        run: uv run ruff format --check .
+
+      - name: Run tests
+        env:
+          VISAR_AUTH_TOKEN: ${{ secrets.VISAR_AUTH_TOKEN }}
+        run: uv run python -m unittest discover -s tests -v

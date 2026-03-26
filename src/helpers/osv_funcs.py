@@ -5,8 +5,8 @@ Licensed under the Apache License, Version 2.0
 
 Project: https://github.com/AtLongLastAnalytics/visar
 Author: Robert Long
-Date: 2025-05
-Version: 1.0.0
+Date: 2026-03
+Version: 1.1.0
 
 File: osv_funcs.py
 Description: Module containing OSV-related functions to:
@@ -22,6 +22,8 @@ import requests
 # import helper functions and configuration
 from config import OSV_CONFIG
 from helpers.logger_config import setup_logger
+
+OSV_TIMEOUT: int = OSV_CONFIG["REQUEST_TIMEOUT"]
 
 # initialize logger
 logger = setup_logger(__name__)
@@ -47,10 +49,12 @@ def fetch_aliases(vuln_id: str) -> List[str]:
             Returns an empty list if unsuccessful or if no aliases are found
     """
     try:
-        response = session.get(f"{OSV_CONFIG['OSV_API_URL']}/{vuln_id}")
+        response = session.get(
+            f"{OSV_CONFIG['OSV_API_URL']}/{vuln_id}", timeout=OSV_TIMEOUT
+        )
         if response.status_code == 200:
             data = response.json()
-            return data.get('aliases', [])  # return [] if aliases not found
+            return data.get("aliases", [])  # return [] if aliases not found
         return []
     except (ConnectionError, TimeoutError) as e:
         logger.error("Network-related error while calling OSV API: %s", e)
@@ -104,7 +108,8 @@ def fetch_single_detail(vid: str) -> Tuple[str, str]:
     values are returned.
 
     Args:
-        vid (str): The vulnerability ID delimiter is ' / '.
+        vid (str): The vulnerability ID to look up. If the ID contains ' / ',
+            only the portion after the delimiter is used for the API call.
 
     Returns:
         Tuple[str, str]: A tuple where:
@@ -114,16 +119,19 @@ def fetch_single_detail(vid: str) -> Tuple[str, str]:
               (or "SEVERITY NOT AVAILABLE" if not provided or on error).
     """
     try:
-        # Handle formatting: if the ID contains '/', extract the second part.
-        if '/' in vid:
-            vid = vid.split('/ ')[1]
+        # handle formatting: if the ID contains '/', extract the second part.
+        if "/" in vid:
+            vid = vid.split("/ ")[1]
 
-        response = session.get(f"{OSV_CONFIG['OSV_API_URL']}/{vid}")
+        response = session.get(
+            f"{OSV_CONFIG['OSV_API_URL']}/{vid}", timeout=OSV_TIMEOUT
+        )
         if response.status_code == 200:
             data = response.json()
-            detail = data.get('details', 'No details available')
-            severity = data.get('database_specific', {}).get('severity',
-                                                             'NOT AVAILABLE')
+            detail = data.get("details", "No details available")
+            severity = data.get("database_specific", {}).get(
+                "severity", "NOT AVAILABLE"
+            )
             return detail, severity
         else:
             logger.error("API error for %s: %s", vid, response.status_code)
@@ -132,7 +140,7 @@ def fetch_single_detail(vid: str) -> Tuple[str, str]:
     except Exception as e:
         logger.error("Unexpected error calling OSV API; %s: %s", vid, e)
 
-    # Default return values if any error occurs.
+    # default return values if any error occurs.
     return "DETAILS NOT AVAILABLE", "SEVERITY NOT AVAILABLE"
 
 
@@ -160,11 +168,11 @@ def update_idlist(vuln_ids: List[str]) -> List[str]:
     """
     result = []
     for vid in vuln_ids:
-        if ' / ' not in vid and vid.startswith('PYSEC'):
+        if " / " not in vid and vid.startswith("PYSEC"):
             aliases = fetch_aliases(vid)
             alias_added = False
             for alias in aliases:
-                if alias.startswith('GHSA'):
+                if alias.startswith("GHSA"):
                     result.append(f"{vid} / {alias}")
                     alias_added = True
                     break

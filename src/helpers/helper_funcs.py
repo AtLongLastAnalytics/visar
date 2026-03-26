@@ -5,8 +5,8 @@ Licensed under the Apache License, Version 2.0
 
 Project: https://github.com/AtLongLastAnalytics/visar
 Author: Robert Long
-Date: 2025-05
-Version: 1.0.0
+Date: 2026-03
+Version: 1.1.0
 
 File: helper_funcs.py
 Description: This module includes general purpose functions for data
@@ -16,7 +16,7 @@ transformation and file management.
 # import standard libraries
 import csv
 from datetime import datetime
-import os
+import json
 from pathlib import Path
 import re
 import requests
@@ -26,11 +26,14 @@ from typing import Callable, List, Optional, Any, Union
 from urllib.parse import urlparse
 
 # import helper functions and configuration
-from config import GITHUB_CONFIG
+from config import DATA_DIR, GITHUB_CONFIG
 from helpers.logger_config import setup_logger
 
 # initialize logger
 logger = setup_logger(__name__)
+
+# severity sort order shared by all output writers
+_SEVERITY_ORDER: dict = {"CRITICAL": 0, "HIGH": 1, "MODERATE": 2, "LOW": 3}
 
 
 def check_datafolder_exists():
@@ -43,13 +46,8 @@ def check_datafolder_exists():
     Returns:
         None
     """
-
-    # Get the absolute path for the root directory
-    parent_dir = os.path.abspath(os.path.join(os.getcwd(), ".."))
-    data_folder = os.path.join(parent_dir, "data")
-
-    if not os.path.exists(data_folder):
-        os.makedirs(data_folder)
+    if not DATA_DIR.exists():
+        DATA_DIR.mkdir(parents=True, exist_ok=True)
 
 
 def exit_with_error(message: str, code: int = 1) -> None:
@@ -111,8 +109,8 @@ def format_filename(repo_url: str) -> str:
     """
     parsed = urlparse(repo_url)
     # remove leading slash and replace slashes with hyphens
-    formatted_path = parsed.path.lstrip('/').replace('/', '-')
-    today_date = datetime.today().strftime('%Y%m%d')
+    formatted_path = parsed.path.lstrip("/").replace("/", "-")
+    today_date = datetime.today().strftime("%Y%m%d")
     return f"{today_date}-{formatted_path}"
 
 
@@ -153,14 +151,19 @@ def prepend_line(file_path: Path, line: str) -> None:
         file_path (Path): The path to the file.
         line (str): The line to prepend.
     """
-    with file_path.open('r') as f:
+    with file_path.open("r") as f:
         content = f.read()
-    with file_path.open('w') as f:
-        f.write(line + '\n' + content)
+    with file_path.open("w") as f:
+        f.write(line + "\n" + content)
 
 
-def retry_call(func: Callable, *args: Any, retries: int = 3,
-               delay: Union[int, float] = 2, **kwargs: Any) -> Any:
+def retry_call(
+    func: Callable,
+    *args: Any,
+    retries: int = 3,
+    delay: Union[int, float] = 2,
+    **kwargs: Any,
+) -> Any:
     """
     Call a function and retry if an exception is encountered.
 
@@ -189,8 +192,8 @@ def retry_call(func: Callable, *args: Any, retries: int = 3,
             return result
         except Exception as e:
             logger.warning(
-                "Attempt %s for %s failed: %s",
-                attempt + 1, func.__name__, e)
+                "Attempt %s for %s failed: %s", attempt + 1, func.__name__, e
+            )
             if attempt < retries - 1:
                 time.sleep(delay)
             else:
@@ -210,7 +213,7 @@ def validate_github_url(url: str) -> bool:
     Returns:
         bool: True if the URL is valid, False otherwise.
     """
-    pattern = r'^https://github\.com/[\w-]+/[\w-]+(?:/)?$'
+    pattern = r"^https://github\.com/[\w-]+/[\w.\-]+(?:/)?$"
     if re.match(pattern, url):
         return True
     else:
@@ -234,17 +237,16 @@ def verify_github_token(token: str) -> bool:
             False otherwise.
     """
     headers = {
-        'Authorization': f'token {token}',
-        'Accept': 'application/vnd.github.v3+json'
+        "Authorization": f"token {token}",
+        "Accept": "application/vnd.github.v3+json",
     }
 
     try:
-        response = requests.get(f"{GITHUB_CONFIG['BASE_URL']}/user",
-                                headers=headers)
+        response = requests.get(f"{GITHUB_CONFIG['BASE_URL']}/user", headers=headers)
 
         if response.status_code == 200:
-            scopes = response.headers.get('X-OAuth-Scopes', '')
-            if 'public_repo' in scopes:
+            scopes = response.headers.get("X-OAuth-Scopes", "")
+            if "public_repo" in scopes:
                 return True
             else:
                 logger.error("GitHub token missing 'public_repo' scope")
@@ -253,15 +255,18 @@ def verify_github_token(token: str) -> bool:
         elif response.status_code == 401:
             logger.error("GitHub API error: %s", response.status_code)
             return False
+        else:
+            logger.error("GitHub API unexpected status: %s", response.status_code)
+            return False
 
     except requests.exceptions.RequestException as e:
         logger.error("GitHub API request failed: %s", e)
         return False
 
 
-def write_vulnerability_details_to_csv(vuln_ids: List[str], details: List[str],
-                                       severities: List[str], output_file: Path
-                                       ) -> None:
+def write_vulnerability_details_to_csv(
+    vuln_ids: List[str], details: List[str], severities: List[str], output_file: Path
+) -> None:
     """
     Write vulnerability details to a CSV file.
 
@@ -275,8 +280,78 @@ def write_vulnerability_details_to_csv(vuln_ids: List[str], details: List[str],
         severities (List[str]): A list of vulnerability severity values.
         output_file (Path): The file path where the CSV will be written.
     """
-    with open(output_file, 'w', newline='', encoding='utf-8') as f:
+    rows = sorted(
+        zip(vuln_ids, severities, details), key=lambda x: _SEVERITY_ORDER.get(x[1], 99)
+    )
+    with open(output_file, "w", newline="", encoding="utf-8") as f:
         writer = csv.writer(f)
-        writer.writerow(['VulnerabilityID', 'Severity', 'Details'])
-        for vid, sev, det in zip(vuln_ids, severities, details):
+        writer.writerow(["VulnerabilityID", "Severity", "Details"])
+        for vid, sev, det in rows:
             writer.writerow([vid, sev, det])
+
+
+def read_batch_file(file_path: str) -> List[str]:
+    """
+    Read a batch file and return a list of valid GitHub repository URLs.
+
+    This function reads the file at file_path line by line. Lines that are
+    blank or begin with '#' are silently skipped. Lines that are not valid
+    GitHub URLs (as determined by validate_github_url) are skipped; the
+    validate_github_url function logs the invalid URL at ERROR level.
+    The returned list contains only validated URLs in the order they appear.
+
+    Args:
+        file_path (str): Path to the batch file containing one URL per line.
+
+    Returns:
+        List[str]: A list of validated GitHub repository URLs.
+
+    Raises:
+        FileNotFoundError: If the specified file does not exist.
+        OSError: If the file cannot be read.
+    """
+    path = Path(file_path)
+    if not path.exists():
+        raise FileNotFoundError(f"Batch file not found: {file_path}")
+
+    urls = []
+    with path.open("r", encoding="utf-8") as f:
+        for line in f:
+            line = line.strip()
+            if not line or line.startswith("#"):
+                continue
+            if validate_github_url(line):
+                urls.append(line)
+    return urls
+
+
+def write_vulnerability_details_to_json(
+    vuln_ids: List[str], details: List[str], severities: List[str], output_file: Path
+) -> None:
+    """
+    Write vulnerability details to a JSON file.
+
+    This function writes vulnerability information as a JSON array to the
+    specified output file. Each element is an object with keys
+    'VulnerabilityID', 'Severity', and 'Details'. Rows are sorted by severity
+    order: CRITICAL, HIGH, MODERATE, LOW. Unknown severities sort last.
+    The file is written with UTF-8 encoding and 2-space indentation.
+
+    Args:
+        vuln_ids (List[str]): A list of vulnerability IDs.
+        details (List[str]): A list containing vulnerability details.
+        severities (List[str]): A list of vulnerability severity values.
+        output_file (Path): The file path where the JSON will be written.
+
+    Returns:
+        None
+    """
+    rows = sorted(
+        zip(vuln_ids, severities, details), key=lambda x: _SEVERITY_ORDER.get(x[1], 99)
+    )
+    records = [
+        {"VulnerabilityID": vid, "Severity": sev, "Details": det}
+        for vid, sev, det in rows
+    ]
+    with open(output_file, "w", encoding="utf-8") as f:
+        json.dump(records, f, indent=2)

@@ -38,13 +38,13 @@ DOCKER_CONFIG: Dict[str, Union[str, int]] = {
 # define GitHub configuration
 GITHUB_CONFIG: Dict[str, Optional[str]] = {
     "BASE_URL": "https://api.github.com",
-    "GITHUB_TOKEN": os.getenv("GITHUB_AUTH_TOKEN"),
+    "GITHUB_TOKEN": os.getenv("VISAR_AUTH_TOKEN"),
 }
 
 # validate critical environment variables.
 if GITHUB_CONFIG["GITHUB_TOKEN"] is None:
     raise EnvironmentError(
-        "GITHUB_AUTH_TOKEN environment variable is not set. "
+        "VISAR_AUTH_TOKEN environment variable is not set. "
         "Please check your .env file."
     )
 

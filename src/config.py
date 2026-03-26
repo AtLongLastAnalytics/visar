@@ -44,8 +44,7 @@ GITHUB_CONFIG: Dict[str, Optional[str]] = {
 # validate critical environment variables.
 if GITHUB_CONFIG["GITHUB_TOKEN"] is None:
     raise EnvironmentError(
-        "VISAR_AUTH_TOKEN environment variable is not set. "
-        "Please check your .env file."
+        "VISAR_AUTH_TOKEN environment variable is not set. Please check your .env file."
     )
 
 # define OSV configuration

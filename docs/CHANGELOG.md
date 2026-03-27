@@ -2,7 +2,7 @@
 
 All notable changes to VISaR are documented here.
 
-## [1.1.0] - 2026-03
+## [1.1.0] - 2026-03-25
 
 ### Added
 - **Batch scan mode** (`--batch repos.txt`) — scan multiple repositories from a text file in one command.
@@ -16,7 +16,7 @@ All notable changes to VISaR are documented here.
 - Migrated from `pip` + `requirements.txt` to `uv` + `pyproject.toml` for environment and dependency management.
 - Exit codes formalised: `0` = success (including no vulnerabilities found), `1` = scan failure.
 
-## [1.0.0] - 2026-01
+## [1.0.0] - 2025-05-12
 
 ### Added
 - Initial release: single-repository vulnerability scanning via OSSF Scorecard + OSV API enrichment.

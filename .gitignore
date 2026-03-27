@@ -37,7 +37,7 @@ data/*
 # Local run logs — keep only example logs in version control
 logs/visar_*.log
 
-# Local development tracking (not for repo)
-CHANGELOG.md
+# Local development tracking (not for repo) — root-level only
+/CHANGELOG.md
 
 # Note: uv.lock should be committed — it pins exact dependency versions

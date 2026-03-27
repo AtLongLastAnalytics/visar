@@ -4,14 +4,31 @@
 
 # Welcome to VISaR
 [![CI](https://github.com/AtLongLastAnalytics/visar/actions/workflows/ci.yml/badge.svg)](https://github.com/AtLongLastAnalytics/visar/actions/workflows/ci.yml)
+[![codecov](https://codecov.io/gh/AtLongLastAnalytics/visar/branch/main/graph/badge.svg)](https://codecov.io/gh/AtLongLastAnalytics/visar)
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE.txt)
 [![Python 3.12+](https://img.shields.io/badge/Python-3.12%2B-blue.svg)](https://www.python.org/)
 
 **Free, open-source vulnerability scanning and reporting for GitHub repositories.**
 
+## Quick Start
+
+```bash
+# 1. Clone and install
+git clone https://github.com/AtLongLastAnalytics/visar.git && cd visar
+uv sync
+
+# 2. Add your GitHub token
+cp .env.example .env   # then paste your token into .env
+
+# 3. Scan a repo
+cd src && uv run python main.py https://github.com/owner/repo
+```
+
+> Full prerequisites, options, and batch scanning in [Section 1](#1-using-visar).
+
 ## What is VISaR?
 
-VISaR (Vulnerability Identification, Scanning and Reporting) is a free, open-source Python tool that automatically scans GitHub repositories for known vulnerabilities and generates detailed, actionable reports. Output is available in CSV, JSON, or as a self-contained interactive HTML dashboard, . pojyymaking it easy to review, share, and act on findings.
+VISaR (Vulnerability Identification, Scanning and Reporting) is a free, open-source Python tool that automatically scans GitHub repositories for known vulnerabilities and generates detailed, actionable reports. Output is available in CSV, JSON, or as a self-contained interactive HTML dashboard, making it easy to review, share, and act on findings.
 
 VISaR uses best-in-class open-source components: the [OSSF Scorecard](https://github.com/ossf/scorecard) for vulnerability identification and the [OSV Database](https://osv.dev/) for vulnerability enrichment (severity, description, and aliases).
 
@@ -36,7 +53,7 @@ To use VISaR, ensure you have the following installed and configured:
     docker pull gcr.io/openssf/scorecard:stable
     ```
 
-- A classic GitHub personal access token _(Settings > Developer Settings > Personal access tokens > Tokens (classic))_ with the `public_repo` scope. This is stored in a `.env` file at the project root (never committed to version control).
+- A classic GitHub personal access token _(Settings > Developer Settings > Personal access tokens > Tokens (classic))_ with the `public_repo` scope. This is stored in a `.env` file at the project root (never committed to version control). The `public_repo` scope grants **read-only API access** for authenticated rate limiting — it does not allow VISaR to modify, write to, or delete any repository.
 
 **System Requirements**
 
@@ -44,6 +61,8 @@ To use VISaR, ensure you have the following installed and configured:
 - Docker Desktop with at least 2 GB of available memory
 - Network access to the GitHub API (`api.github.com`) and the OSV API (`api.osv.dev`)
 - Approximately 1 GB of free disk space for the OSSF Scorecard Docker image
+
+> **Scan duration:** A typical scan takes **2–5 minutes** per repository, depending on repo size and network speed. Batch scans run sequentially, so plan accordingly.
 
 **Install uv** (skip if already installed):
 
@@ -83,7 +102,7 @@ To use VISaR, ensure you have the following installed and configured:
 
    All tests should pass. If any fail, check the error message and ensure Docker Desktop is running and the OSSF Scorecard image has been pulled.
 
-5. Move into the `src/` folder and run the application:
+5. Move into the `src/` folder and run the application. VISaR's source files use relative imports, so commands must be run from `src/` — this is a known limitation tracked in the [roadmap](docs/ROADMAP.md):
 
    **Single repository scan (default CSV output):**
     ```
@@ -185,17 +204,27 @@ The VISaR codebase follows a standard `src/` layout.
 - Project dependencies are declared in `pyproject.toml` at the root. Running `uv sync` creates `.venv` and installs everything. The `scripts/` directory contains `setup.ps1` (Windows) and `setup.sh` (Mac/Linux) as convenience wrappers around `uv sync`.
 
 
-## 3. Roadmap
+## 3. Known Limitations
+
+- **GitHub only:** VISaR currently supports public GitHub repositories. GitLab and Bitbucket support is planned — see the [roadmap](docs/ROADMAP.md).
+- **Public repos only:** Private repository scanning is not yet supported.
+- **Docker required:** Docker Desktop must be running before executing a scan.
+- **Sequential batch scans:** Repositories in `repos.txt` are scanned one at a time; large batches will take proportionally longer.
+- **`src/` working directory required:** Commands must be run from the `src/` folder due to relative imports. A root-level entry point is planned.
+
+## 4. Roadmap
 
 See [docs/ROADMAP.md](./docs/ROADMAP.md) for planned features and future direction.
 
-## 4. Contribute
+## 5. Contribute
 Thank you for wanting to contribute to VISaR! We welcome contributions from the community.
 
 Before contributing, please read our guidelines covering code style, linting, and testing: [docs/Contributing.md](./docs/Contributing.md).
 
 By contributing to this project, you agree that your contributions will be licensed under the [Apache-2.0 License](LICENSE.txt).
 
-## 5. License
+## 6. License
 
 VISaR is completely free, open-source, and licensed under the [Apache-2.0 License](LICENSE.txt).
+
+See [docs/CHANGELOG.md](./docs/CHANGELOG.md) for version history.

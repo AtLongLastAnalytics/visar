@@ -18,7 +18,7 @@ name: CI
 
 on:
   push:
-    branches: [main]
+    branches: [main, docs/readme-improvements]
   pull_request:
     branches: [main]
   workflow_dispatch:  # allow manual runs from the GitHub Actions UI
@@ -51,7 +51,16 @@ jobs:
       - name: Check formatting with ruff
         run: uv run ruff format --check .
 
-      - name: Run tests
+      - name: Run tests with coverage
         env:
           VISAR_AUTH_TOKEN: ${{ secrets.VISAR_AUTH_TOKEN }}
-        run: uv run python -m unittest discover -s tests -v
+        run: uv run coverage run -m unittest discover -s tests -v
+
+      - name: Generate coverage report
+        run: uv run coverage xml
+
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v4
+        with:
+          files: coverage.xml
+          fail_ci_if_error: false

@@ -11,7 +11,7 @@
 
 ## What is VISaR?
 
-VISaR (Vulnerability Identification, Scanning and Reporting) is a free, open-source Python tool that automatically scans GitHub repositories for known vulnerabilities and generates detailed, actionable reports. Output is available in CSV, JSON, or as a self-contained interactive HTML dashboard, . pojyymaking it easy to review, share, and act on findings.
+VISaR (Vulnerability Identification, Scanning and Reporting) is a free, open-source Python tool that automatically scans GitHub repositories for known vulnerabilities and generates detailed, actionable reports. Output is available in CSV, JSON, or as a self-contained interactive HTML dashboard, making it easy to review, share, and act on findings.
 
 VISaR uses best-in-class open-source components: the [OSSF Scorecard](https://github.com/ossf/scorecard) for vulnerability identification and the [OSV Database](https://osv.dev/) for vulnerability enrichment (severity, description, and aliases).
 

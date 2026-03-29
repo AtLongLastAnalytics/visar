@@ -36,15 +36,15 @@ _SEVERITY_ORDER: dict = {"CRITICAL": 0, "HIGH": 1, "MODERATE": 2, "LOW": 3}
 _HTML_CSS: str = """
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 body {
-    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
-    background: #f1f5f9;
-    color: #1e293b;
+    font-family: 'Manrope', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+    background: #0a0a0a;
+    color: #f0fdf4;
     min-height: 100vh;
     font-size: 14px;
     line-height: 1.5;
 }
 .page-header {
-    background: #1e293b;
+    background: #0a0a0a;
     color: #fff;
     padding: 1rem 2rem;
     display: flex;
@@ -52,12 +52,13 @@ body {
     justify-content: space-between;
     gap: 1rem;
     flex-wrap: wrap;
+    border-bottom: 1px solid #262626;
 }
 .header-left { display: flex; align-items: center; gap: 1rem; }
-.logo { font-size: 1.25rem; font-weight: 800; letter-spacing: 0.08em; color: #38bdf8; }
-.tagline { font-size: 0.8rem; color: #64748b; }
-.header-right { display: flex; gap: 1.5rem; font-size: 0.8rem; color: #94a3b8; }
-.header-right strong { color: #e2e8f0; }
+.logo { font-size: 1.25rem; font-weight: 800; letter-spacing: 0.08em; color: #4ade80; text-decoration: none; }
+.tagline { font-size: 0.8rem; color: #6b7280; }
+.header-right { display: flex; gap: 1.5rem; font-size: 0.8rem; color: #6b7280; }
+.header-right strong { color: #d4d4d4; }
 .main { max-width: 1400px; margin: 0 auto; padding: 1.5rem 2rem; }
 .stats-grid {
     display: grid;
@@ -66,42 +67,43 @@ body {
     margin-bottom: 1.5rem;
 }
 .stat-card {
-    background: white;
+    background: #171717;
     border-radius: 0.625rem;
     padding: 1.125rem 1.25rem;
     text-align: center;
-    box-shadow: 0 1px 3px rgba(0,0,0,0.08), 0 1px 2px rgba(0,0,0,0.04);
+    box-shadow: 0 1px 3px rgba(0,0,0,0.4), 0 1px 2px rgba(0,0,0,0.2);
     border-top: 3px solid transparent;
 }
-.stat-card.total    { border-top-color: #64748b; }
+.stat-card.total    { border-top-color: #6b7280; }
 .stat-card.critical { border-top-color: #ef4444; }
 .stat-card.high     { border-top-color: #f97316; }
 .stat-card.moderate { border-top-color: #f59e0b; }
 .stat-card.low      { border-top-color: #3b82f6; }
 .stat-card.other    { border-top-color: #8b5cf6; }
 .stat-count { font-size: 1.875rem; font-weight: 700; line-height: 1; margin-bottom: 0.3rem; }
-.stat-card.total    .stat-count { color: #64748b; }
-.stat-card.critical .stat-count { color: #ef4444; }
-.stat-card.high     .stat-count { color: #f97316; }
-.stat-card.moderate .stat-count { color: #f59e0b; }
-.stat-card.low      .stat-count { color: #3b82f6; }
-.stat-card.other    .stat-count { color: #8b5cf6; }
+.stat-card.total    .stat-count { color: #6b7280; }
+.stat-card.critical .stat-count { color: #f87171; }
+.stat-card.high     .stat-count { color: #fb923c; }
+.stat-card.moderate .stat-count { color: #fbbf24; }
+.stat-card.low      .stat-count { color: #60a5fa; }
+.stat-card.other    .stat-count { color: #a78bfa; }
 .stat-label {
     font-size: 0.7rem;
     font-weight: 600;
     text-transform: uppercase;
     letter-spacing: 0.1em;
-    color: #94a3b8;
+    color: #71717a;
 }
 .controls {
-    background: white;
+    background: #171717;
     border-radius: 0.625rem;
     padding: 0.875rem 1.25rem;
     margin-bottom: 1.25rem;
     display: flex;
     flex-direction: column;
     gap: 0.75rem;
-    box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+    box-shadow: 0 1px 3px rgba(0,0,0,0.4);
+    border: 1px solid #262626;
 }
 .controls-row {
     display: flex;
@@ -111,68 +113,69 @@ body {
 }
 .date-select {
     padding: 0.5rem 0.875rem;
-    border: 1.5px solid #e2e8f0;
+    border: 1.5px solid #262626;
     border-radius: 0.5rem;
     font-size: 0.875rem;
-    color: #1e293b;
-    background: #f8fafc;
+    color: #f0fdf4;
+    background: #1a1a1a;
     cursor: pointer;
     outline: none;
     transition: border-color 0.15s, box-shadow 0.15s;
 }
 .date-select:focus {
-    border-color: #38bdf8;
-    background: white;
-    box-shadow: 0 0 0 3px rgba(56,189,248,0.12);
+    border-color: #4ade80;
+    background: #1a1a1a;
+    box-shadow: 0 0 0 3px rgba(74,222,128,0.15);
 }
 .dataset-select {
     flex: 1;
     min-width: 240px;
     padding: 0.5rem 0.875rem;
-    border: 1.5px solid #e2e8f0;
+    border: 1.5px solid #262626;
     border-radius: 0.5rem;
     font-size: 0.875rem;
-    color: #1e293b;
-    background: #f8fafc;
+    color: #f0fdf4;
+    background: #1a1a1a;
     cursor: pointer;
     outline: none;
     transition: border-color 0.15s, box-shadow 0.15s;
 }
 .dataset-select:focus {
-    border-color: #38bdf8;
-    background: white;
-    box-shadow: 0 0 0 3px rgba(56,189,248,0.12);
+    border-color: #4ade80;
+    background: #1a1a1a;
+    box-shadow: 0 0 0 3px rgba(74,222,128,0.15);
 }
 .filter-group { display: flex; gap: 0.4rem; flex-wrap: wrap; }
 .filter-btn {
     padding: 0.35rem 0.85rem;
-    border: 1.5px solid #e2e8f0;
+    border: 1.5px solid #262626;
     border-radius: 999px;
     font-size: 0.75rem;
     font-weight: 600;
     cursor: pointer;
-    background: white;
-    color: #64748b;
+    background: #1a1a1a;
+    color: #a1a1aa;
     transition: all 0.15s;
     white-space: nowrap;
 }
-.filter-btn:hover { border-color: #94a3b8; color: #1e293b; background: #f8fafc; }
+.filter-btn:hover { border-color: #404040; color: #f0fdf4; background: #262626; }
 .filter-btn.active { border-color: transparent; color: white; }
-.filter-btn[data-filter="all"].active      { background: #64748b; }
+.filter-btn[data-filter="all"].active      { background: #52525b; }
 .filter-btn[data-filter="CRITICAL"].active { background: #ef4444; }
 .filter-btn[data-filter="HIGH"].active     { background: #f97316; }
 .filter-btn[data-filter="MODERATE"].active { background: #f59e0b; }
 .filter-btn[data-filter="LOW"].active      { background: #3b82f6; }
 .filter-btn[data-filter="OTHER"].active    { background: #8b5cf6; }
-.result-count { font-size: 0.75rem; color: #94a3b8; white-space: nowrap; }
+.result-count { font-size: 0.75rem; color: #71717a; white-space: nowrap; }
 .table-wrapper {
-    background: white;
+    background: #171717;
     border-radius: 0.625rem;
-    box-shadow: 0 1px 3px rgba(0,0,0,0.08), 0 1px 2px rgba(0,0,0,0.04);
+    box-shadow: 0 1px 3px rgba(0,0,0,0.4), 0 1px 2px rgba(0,0,0,0.2);
     overflow: hidden;
+    border: 1px solid #262626;
 }
 table { width: 100%; border-collapse: collapse; }
-thead tr { background: #f8fafc; }
+thead tr { background: #1a1a1a; }
 thead th {
     padding: 0.75rem 1.25rem;
     text-align: left;
@@ -180,32 +183,32 @@ thead th {
     font-weight: 700;
     text-transform: uppercase;
     letter-spacing: 0.08em;
-    color: #64748b;
-    border-bottom: 1px solid #e2e8f0;
+    color: #6b7280;
+    border-bottom: 1px solid #262626;
     white-space: nowrap;
 }
 thead th.sortable { cursor: pointer; user-select: none; }
-thead th.sortable:hover { color: #1e293b; background: #f1f5f9; }
+thead th.sortable:hover { color: #f0fdf4; background: #262626; }
 thead th.expand-th { width: 2.5rem; }
 .sort-icon { display: inline-block; margin-left: 0.3rem; }
 th.sorted-asc  .sort-icon::after { content: '\2191'; opacity: 0.8; }
 th.sorted-desc .sort-icon::after { content: '\2193'; opacity: 0.8; }
 th.sortable:not(.sorted-asc):not(.sorted-desc) .sort-icon::after { content: '\21C5'; opacity: 0.4; }
-tbody tr { border-bottom: 1px solid #f1f5f9; transition: background 0.1s; }
+tbody tr { border-bottom: 1px solid #262626; transition: background 0.1s; }
 tbody tr:last-child { border-bottom: none; }
-tbody tr:hover { background: #f8fafc; }
+tbody tr:hover { background: #262626; }
 tbody tr.hidden { display: none; }
 td { padding: 0.75rem 1.25rem; font-size: 0.875rem; vertical-align: top; }
 .id-cell { white-space: nowrap; min-width: 180px; }
 .id-cell a {
-    color: #0284c7;
+    color: #10b981;
     text-decoration: none;
     font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
     font-size: 0.8rem;
     font-weight: 500;
 }
-.id-cell a:hover { text-decoration: underline; color: #0369a1; }
-.id-sep { color: #94a3b8; font-size: 0.75rem; }
+.id-cell a:hover { text-decoration: underline; color: #059669; }
+.id-sep { color: #71717a; font-size: 0.75rem; }
 .badge {
     display: inline-block;
     padding: 0.2rem 0.6rem;
@@ -216,12 +219,12 @@ td { padding: 0.75rem 1.25rem; font-size: 0.875rem; vertical-align: top; }
     letter-spacing: 0.08em;
     white-space: nowrap;
 }
-.badge.critical { background: #fee2e2; color: #dc2626; }
-.badge.high     { background: #ffedd5; color: #c2410c; }
-.badge.moderate { background: #fef3c7; color: #b45309; }
-.badge.low      { background: #dbeafe; color: #1d4ed8; }
-.badge.other    { background: #ede9fe; color: #6d28d9; }
-.detail-cell { color: #475569; line-height: 1.6; }
+.badge.critical { background: #3f0f0f; color: #f87171; }
+.badge.high     { background: #3f1a0a; color: #fb923c; }
+.badge.moderate { background: #3f2d04; color: #fbbf24; }
+.badge.low      { background: #0f1f3f; color: #60a5fa; }
+.badge.other    { background: #1e1240; color: #a78bfa; }
+.detail-cell { color: #a1a1aa; line-height: 1.6; }
 .det-text {
     white-space: pre-wrap;
     word-break: break-word;
@@ -239,20 +242,20 @@ tr.expanded .det-text { max-height: 9999px; }
     justify-content: center;
     width: 1.5rem;
     height: 1.5rem;
-    border: 1.5px solid #e2e8f0;
+    border: 1.5px solid #262626;
     border-radius: 50%;
-    background: white;
-    color: #64748b;
+    background: #1a1a1a;
+    color: #6b7280;
     font-size: 1rem;
     line-height: 1;
     cursor: pointer;
     transition: all 0.15s;
 }
-.expand-btn:hover { border-color: #38bdf8; color: #0284c7; background: #f0f9ff; }
-.empty-state { text-align: center; padding: 3rem 1rem; color: #94a3b8; font-size: 0.875rem; }
-.footer { text-align: center; padding: 1.5rem; font-size: 0.75rem; color: #94a3b8; }
-.footer a { color: #64748b; text-decoration: none; }
-.footer a:hover { text-decoration: underline; }
+.expand-btn:hover { border-color: #4ade80; color: #10b981; background: #14532d; }
+.empty-state { text-align: center; padding: 3rem 1rem; color: #71717a; font-size: 0.875rem; }
+.footer { text-align: center; padding: 1.5rem; font-size: 0.75rem; color: #6b7280; }
+.footer a { color: #6b7280; text-decoration: none; }
+.footer a:hover { text-decoration: underline; color: #4ade80; }
 @media (max-width: 1100px) {
     .stats-grid { grid-template-columns: repeat(3, 1fr); }
 }
@@ -626,14 +629,17 @@ def write_multi_dashboard(datasets: List[dict], output_file: Path) -> None:
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>VISaR Dashboard</title>
+  <title>VISaR | AtLongLast Analytics</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;600;700;800&display=swap" rel="stylesheet">
   <style>{_HTML_CSS}</style>
 </head>
 <body>
   <header class="page-header">
     <div class="header-left">
-      <span class="logo">VISaR</span>
-      <span class="tagline">Vulnerability Identification, Scanning &amp; Reporting</span>
+      <a class="logo" href="https://github.com/AtLongLastAnalytics/visar" target="_blank" rel="noopener noreferrer">VISaR</a>
+      <span class="tagline">Vulnerability Identification, Scanning &amp; Reporting &mdash; by <a href="https://atlonglastanalytics.com" target="_blank" rel="noopener noreferrer" style="color:inherit;text-decoration:none;">AtLongLast Analytics</a></span>
     </div>
     <div class="header-right">
       <span><strong>Repo:</strong> <span id="hdr-repo">&mdash;</span></span>
@@ -708,8 +714,8 @@ def write_multi_dashboard(datasets: List[dict], output_file: Path) -> None:
     </div>
   </main>
   <footer class="footer">
-    Generated by <a href="https://github.com/AtLongLastAnalytics/visar"
-    target="_blank" rel="noopener noreferrer">VISaR</a>
+    Generated by <a href="https://github.com/AtLongLastAnalytics/visar" target="_blank" rel="noopener noreferrer">VISaR</a>
+    &mdash; <a href="https://atlonglastanalytics.com" target="_blank" rel="noopener noreferrer">AtLongLast Analytics</a>
   </footer>
   <script>var DATASETS = {datasets_json};</script>
   <script>{_HTML_JS}</script>

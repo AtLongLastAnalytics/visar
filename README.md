@@ -83,7 +83,7 @@ To use VISaR, ensure you have the following installed and configured:
 2. Create a `.env` file in the root directory and add your GitHub token:
 
     ```
-    GITHUB_AUTH_TOKEN = "<your-github-personal-access-token>"
+    VISAR_AUTH_TOKEN = "<your-github-personal-access-token>"
     ```
 
     A `.env.example` template is included at the project root for reference.
@@ -216,15 +216,17 @@ The VISaR codebase follows a standard `src/` layout.
 
 See [docs/ROADMAP.md](./docs/ROADMAP.md) for planned features and future direction.
 
-## 5. Contribute
+## 5. Changelog
+
+See [docs/CHANGELOG.md](./docs/CHANGELOG.md) for version history.
+
+## 6. Contribute
 Thank you for wanting to contribute to VISaR! We welcome contributions from the community.
 
-Before contributing, please read our guidelines covering code style, linting, and testing: [docs/Contributing.md](./docs/Contributing.md).
+Before contributing, please read our guidelines covering code style, linting, and testing: [.github/CONTRIBUTING.md](./.github/CONTRIBUTING.md).
 
 By contributing to this project, you agree that your contributions will be licensed under the [Apache-2.0 License](LICENSE.txt).
 
-## 6. License
+## 7. License
 
 VISaR is completely free, open-source, and licensed under the [Apache-2.0 License](LICENSE.txt).
-
-See [docs/CHANGELOG.md](./docs/CHANGELOG.md) for version history.

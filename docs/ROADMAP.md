@@ -1,6 +1,6 @@
 # VISaR Roadmap
 
-VISaR is built for data engineers and data platform teams who need to rigorously evaluate open-source software before bringing it into their environment. This tools solves a real need in regulated domains such as defence, aviation, and healthcare where software ingestion carries compliance obligations.
+VISaR is built for data engineers and data platform teams who need to rigorously evaluate open-source software before bringing it into their environment. This tool solves a real need in regulated domains such as defence, aviation, and healthcare where software ingestion carries compliance obligations.
 
 The two core use cases this roadmap serves:
 
@@ -44,7 +44,7 @@ GitHub Actions workflow runs the full test suite and linter on every push and pu
 
 ---
 
-## v1.2.0 - Compliance-Ready Evaluation
+## Short-Term Goals
 
 Focused on making VISaR produce outputs that can serve as formal compliance artifacts, extending scan inputs to support local codebases, and enriching vulnerability data with CVE/CVSS information.
 
@@ -81,7 +81,7 @@ Allow a `visar.toml` file at the project root as an alternative to environment v
 
 ---
 
-## v1.3.0 - Regulated and Restricted Environments
+## Long-Term Goals
 
 Designed for teams operating in air-gapped or heavily network-restricted environments where external API calls are not possible, and where full dependency tree evaluation is a compliance requirement.
 
@@ -105,34 +105,3 @@ Extend the HTML dashboard with a timeline view showing vulnerability counts over
 
 **Dashboard text search**
 Add a free-text search box to the dashboard to filter findings by vulnerability ID, severity, or description keywords. All data is already embedded in the HTML - this is a pure JavaScript enhancement that significantly improves usability when reviewing large result sets.
-
----
-
-## v1.4.0+ - Ecosystem Expansion
-
-Broader platform and integration support, driven by community demand.
-
-### Planned Features
-
-**GitLab and Bitbucket support**
-Extend URL validation and authentication token handling to support repositories hosted on GitLab (including self-hosted instances) and Bitbucket. Many enterprise and regulated-sector teams run internal GitLab deployments - this removes the current GitHub-only constraint.
-
-**SARIF output format**
-Emit findings in [SARIF](https://sarifweb.azurewebsites.net/) (Static Analysis Results Interchange Format), the industry-standard format for security tool output. Enables VISaR results to be ingested directly into security dashboards, SIEM tools, and any platform with SARIF support.
-
-**Notification webhooks (Slack / Microsoft Teams)**
-Post a scan summary to a configured Slack channel or Teams webhook after each run. Configurable severity threshold - for example, only notify on HIGH or above. Useful for teams that run scheduled or batch scans and want visibility without polling the output files.
-
-**Direct dependency scanning (`--deps PATH`)**
-Parse dependency manifests (`requirements.txt`, `pyproject.toml`, `package.json`, etc.) directly and query OSV for each listed package - without invoking the OSSF Scorecard Docker container. Faster than a full repo scan and useful for quick pre-integration checks or environments where Docker is unavailable.
-
-**Reusable GitHub Action**
-Publish VISaR as a reusable GitHub Actions action so teams can embed vulnerability scanning directly into their own CI/CD pipelines without any local installation or Docker setup. The action wraps the existing CLI and surfaces findings as workflow annotations and a downloadable report artefact.
-
----
-
-## Contributing
-
-Contributions are welcome. See [Contributing.md](./Contributing.md) for code style, linting, and testing guidelines.
-
-If you have a feature request or have found a bug, please open an issue on [GitHub Issues](https://github.com/AtLongLastAnalytics/visar/issues).

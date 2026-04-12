@@ -42,7 +42,7 @@ line-length = 88
 
 [dependency-groups]
 dev = [
-    "coverage>=7.0",
+    "coverage>=7.13.5",
     "ruff>=0.15.7",
 ]
 # uv manages the virtual environment at .venv in the project root

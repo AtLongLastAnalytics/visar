@@ -313,7 +313,9 @@ def _sorted_findings(findings: List[Finding]) -> List[Finding]:
     )
 
 
-def write_vulnerability_details_to_csv(findings: List[Finding], output_file: Path) -> None:
+def write_vulnerability_details_to_csv(
+    findings: List[Finding], output_file: Path
+) -> None:
     """
     Write vulnerability details to a CSV file.
 
@@ -370,7 +372,9 @@ def read_batch_file(file_path: str) -> List[str]:
     return urls
 
 
-def write_vulnerability_details_to_json(findings: List[Finding], output_file: Path) -> None:
+def write_vulnerability_details_to_json(
+    findings: List[Finding], output_file: Path
+) -> None:
     """
     Write vulnerability details to a JSON file.
 

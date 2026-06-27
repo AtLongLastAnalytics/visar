@@ -45,8 +45,8 @@ _HTML_JS: str = (_ASSETS_DIR / "dashboard.js").read_text(encoding="utf-8")
 # self-contained HTML file (no external image fetch). CSP's img-src already
 # allows data: URIs.
 _LOGO_BYTES: bytes = (_ASSETS_DIR / "logo-rectangle.png").read_bytes()
-_LOGO_DATA_URI: str = (
-    "data:image/png;base64," + base64.b64encode(_LOGO_BYTES).decode("ascii")
+_LOGO_DATA_URI: str = "data:image/png;base64," + base64.b64encode(_LOGO_BYTES).decode(
+    "ascii"
 )
 
 
@@ -133,9 +133,7 @@ def _prepare_dataset(data_file: Path, findings: List[Finding]) -> dict:
     # repo_part is "owner-repo"; the first segment is the GitHub owner and the
     # remainder (which may itself contain hyphens) is the repository name.
     owner, _, repo_name = repo_part.partition("-")
-    repo_url = (
-        f"https://github.com/{owner}/{repo_name}" if owner and repo_name else ""
-    )
+    repo_url = f"https://github.com/{owner}/{repo_name}" if owner and repo_name else ""
     try:
         dt = datetime.strptime(date_part, "%Y%m%d")
         scan_date = dt.strftime("%d %b %Y")

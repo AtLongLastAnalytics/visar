@@ -54,9 +54,7 @@ def _create_session() -> requests.Session:
     return session
 
 
-def _fetch_aliases_with_session(
-    session: requests.Session, vuln_id: str
-) -> List[str]:
+def _fetch_aliases_with_session(session: requests.Session, vuln_id: str) -> List[str]:
     """Fetch aliases using an already-configured session."""
     try:
         response = session.get(
@@ -104,9 +102,7 @@ def _fetch_single_detail_with_session(
     return "DETAILS NOT AVAILABLE", "SEVERITY NOT AVAILABLE"
 
 
-def fetch_aliases(
-    vuln_id: str, session: requests.Session | None = None
-) -> List[str]:
+def fetch_aliases(vuln_id: str, session: requests.Session | None = None) -> List[str]:
     """
     Fetch aliases for a vulnerability ID from the OSV API.
 

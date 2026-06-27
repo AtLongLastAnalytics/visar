@@ -127,7 +127,9 @@ def execute_docker_commands(
         delay=2,
         output_file=summary_filename,
     ):
-        hf.exit_with_error(VisarDockerError("Failed to execute Docker command: summary"))
+        hf.exit_with_error(
+            VisarDockerError("Failed to execute Docker command: summary")
+        )
 
     # execute detailed command
     logger.info("Running OSSF Scorecard (vulnerabilities)...")
@@ -167,9 +169,7 @@ def perform_data_transformation(repo_url: str, summary_filename: Path) -> Any:
     try:
         logger.info("Performing data transformation...")
         if not TEMP_FILE.exists():
-            hf.exit_with_error(
-                VisarDataError(f"Temporary file {TEMP_FILE} not found.")
-            )
+            hf.exit_with_error(VisarDataError(f"Temporary file {TEMP_FILE} not found."))
 
         with open(TEMP_FILE, "r") as file:
             file_contents: str = file.read()
@@ -221,7 +221,9 @@ def call_osv_api(vuln_ids: List[str]) -> List[Finding]:
         hf.exit_with_error(VisarAPIError(f"Unexpected error during OSV API call: {e}"))
 
 
-def write_output(data_filename: str, findings: List[Finding], output_format: str) -> None:
+def write_output(
+    data_filename: str, findings: List[Finding], output_format: str
+) -> None:
     """
     Write vulnerability output data in the specified format.
 

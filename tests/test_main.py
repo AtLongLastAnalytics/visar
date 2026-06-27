@@ -171,7 +171,9 @@ class TestPerformDataTransformation(unittest.TestCase):
 
     @patch("visar.main.osv.update_idlist", return_value=["GHSA-1111-2222-3333"])
     @patch("visar.main.hf.merge_items_with_slash", return_value=["GHSA-1111-2222-3333"])
-    @patch("visar.main.hf.extract_vulnerability_ids", return_value=["GHSA-1111-2222-3333"])
+    @patch(
+        "visar.main.hf.extract_vulnerability_ids", return_value=["GHSA-1111-2222-3333"]
+    )
     @patch("visar.main.hf.prepend_line")
     def test_success_returns_vuln_ids(
         self, mock_prepend, mock_extract, mock_merge, mock_update
@@ -275,9 +277,7 @@ class TestCallOsvApi(unittest.TestCase):
         Returns findings on success.
         """
         findings = call_osv_api(["GHSA-1111-2222-3333"])
-        self.assertEqual(
-            findings, [Finding("GHSA-1111-2222-3333", "HIGH", "detail")]
-        )
+        self.assertEqual(findings, [Finding("GHSA-1111-2222-3333", "HIGH", "detail")])
 
     @patch("visar.main.hf.exit_with_error", side_effect=SystemExit(1))
     @patch("visar.main.cleanup_temp_files")
@@ -335,9 +335,7 @@ class TestWriteOutput(unittest.TestCase):
         cleanup_temp_files and exit_with_error are called when writer raises.
         """
         with self.assertRaises(SystemExit):
-            write_output(
-                "20260320-user-repo", [Finding("ID", "HIGH", "det")], "csv"
-            )
+            write_output("20260320-user-repo", [Finding("ID", "HIGH", "det")], "csv")
         mock_cleanup.assert_called_once()
         mock_exit.assert_called_once()
         self.assertIsInstance(mock_exit.call_args[0][0], VisarOutputError)

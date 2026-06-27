@@ -21,16 +21,12 @@ from unittest.mock import patch, Mock
 # import standard libraries
 import docker
 import subprocess
-import sys
 
 import logging
 
 logging.disable(logging.CRITICAL)
 
-# add the src/ directory to sys.path to import docker_funcs module
-sys.path.insert(0, "./src")
-
-from helpers.docker_funcs import (
+from visar.helpers.docker_funcs import (
     check_docker_isrunning,
     check_dockerimage_exists,
     format_docker_command,
@@ -43,7 +39,7 @@ class TestCheckDockerIsRunning(unittest.TestCase):
     Test cases for the check_docker_isrunning function.
     """
 
-    @patch("helpers.docker_funcs.subprocess.run")
+    @patch("visar.helpers.docker_funcs.subprocess.run")
     def test_dockerisrunning_success(self, mock_run):
         """
         Returns True when docker info executes successfully.
@@ -54,10 +50,10 @@ class TestCheckDockerIsRunning(unittest.TestCase):
         result = check_docker_isrunning()
         self.assertTrue(result)
         mock_run.assert_called_once_with(
-            ["docker", "info"], check=True, capture_output=True
+            ["docker", "info"], check=True, capture_output=True, timeout=30
         )
 
-    @patch("helpers.docker_funcs.subprocess.run")
+    @patch("visar.helpers.docker_funcs.subprocess.run")
     def test_dockerisrunning_calledprocesserror(self, mock_run):
         """
         Returns False when subprocess.run raises a CalledProcessError.
@@ -68,10 +64,10 @@ class TestCheckDockerIsRunning(unittest.TestCase):
         result = check_docker_isrunning()
         self.assertFalse(result)
         mock_run.assert_called_once_with(
-            ["docker", "info"], check=True, capture_output=True
+            ["docker", "info"], check=True, capture_output=True, timeout=30
         )
 
-    @patch("helpers.docker_funcs.subprocess.run")
+    @patch("visar.helpers.docker_funcs.subprocess.run")
     def test_dockerisrunning_filenotfound(self, mock_run):
         """
         Returns False when subprocess.run raises a FileNotFoundError.
@@ -82,7 +78,7 @@ class TestCheckDockerIsRunning(unittest.TestCase):
         result = check_docker_isrunning()
         self.assertFalse(result)
         mock_run.assert_called_once_with(
-            ["docker", "info"], check=True, capture_output=True
+            ["docker", "info"], check=True, capture_output=True, timeout=30
         )
 
 
@@ -181,7 +177,7 @@ class TestRunDockerCommand(unittest.TestCase):
     Test cases for the run_docker_command function.
     """
 
-    @patch("helpers.docker_funcs.subprocess.run")
+    @patch("visar.helpers.docker_funcs.subprocess.run")
     def test_rundockercommand_success(self, mock_subprocess_run):
         """
         Returns True when subprocess.run completes successfully.
@@ -192,10 +188,10 @@ class TestRunDockerCommand(unittest.TestCase):
         command = ["docker", "run", "example/container"]
         self.assertTrue(run_docker_command(command))
         mock_subprocess_run.assert_called_with(
-            command, text=True, capture_output=True, check=True
+            command, text=True, capture_output=True, check=True, timeout=300
         )
 
-    @patch("helpers.docker_funcs.subprocess.run")
+    @patch("visar.helpers.docker_funcs.subprocess.run")
     def test_rundockercommand_writes_output_file(self, mock_subprocess_run):
         """
         Writes stdout to output_file when provided.
@@ -215,7 +211,7 @@ class TestRunDockerCommand(unittest.TestCase):
         finally:
             out_path.unlink(missing_ok=True)
 
-    @patch("helpers.docker_funcs.subprocess.run")
+    @patch("visar.helpers.docker_funcs.subprocess.run")
     def test_rundockercommand_subprocesserror(self, mock_subprocess_run):
         """
         Returns False when subprocess.run raises a CalledProcessError.
@@ -225,7 +221,7 @@ class TestRunDockerCommand(unittest.TestCase):
         )
         self.assertFalse(run_docker_command(["docker", "run"]))
 
-    @patch("helpers.docker_funcs.subprocess.run")
+    @patch("visar.helpers.docker_funcs.subprocess.run")
     def test_rundockercommand_oserror(self, mock_subprocess_run):
         """
         Returns False when subprocess.run raises an OSError.
@@ -233,7 +229,7 @@ class TestRunDockerCommand(unittest.TestCase):
         mock_subprocess_run.side_effect = OSError("OS error")
         self.assertFalse(run_docker_command(["docker", "run"]))
 
-    @patch("helpers.docker_funcs.subprocess.run")
+    @patch("visar.helpers.docker_funcs.subprocess.run")
     def test_rundockercommand_unexpectederror(self, mock_subprocess_run):
         """
         Returns False when subprocess.run raises a generic Exception.

@@ -51,17 +51,7 @@ jobs:
       - name: Check formatting with ruff
         run: uv run ruff format --check .
 
-      - name: Run tests with coverage
+      - name: Run tests
         env:
           VISAR_AUTH_TOKEN: ${{ secrets.VISAR_AUTH_TOKEN }}
-        run: uv run coverage run -m unittest discover -s tests -v
-
-      - name: Generate coverage report
-        run: uv run coverage xml
-
-      - name: Upload coverage to Codecov
-        uses: codecov/codecov-action@v4
-        with:
-          token: ${{ secrets.CODECOV_TOKEN }}
-          files: coverage.xml
-          fail_ci_if_error: false
+        run: uv run python -m unittest discover -s tests -v

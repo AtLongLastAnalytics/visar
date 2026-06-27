@@ -20,18 +20,15 @@ from unittest.mock import patch, Mock
 
 # import standard libraries
 import requests
-import sys
 
 import logging
 
 logging.disable(logging.CRITICAL)
 
-# add the src/ directory to sys.path to import osv_funcs module
-sys.path.insert(0, "./src")
+from visar.config import OSV_CONFIG
+from visar.models import Finding
 
-from config import OSV_CONFIG
-
-from helpers.osv_funcs import (
+from visar.helpers.osv_funcs import (
     fetch_aliases,
     fetch_single_detail,
     fetch_details,
@@ -44,8 +41,8 @@ class TestFetchAliases(unittest.TestCase):
     Test cases for the fetch_aliases function.
     """
 
-    @patch("helpers.osv_funcs.session.get")
-    def test_fetchaliases_success(self, mock_get):
+    @patch("visar.helpers.osv_funcs._create_session")
+    def test_fetchaliases_success(self, mock_create_session):
         """
         Returns the list of aliases when the API call is successful.
         """
@@ -54,15 +51,17 @@ class TestFetchAliases(unittest.TestCase):
         mock_response = Mock()
         mock_response.status_code = 200
         mock_response.json.return_value = {"aliases": fake_aliases}
-        mock_get.return_value = mock_response
+        mock_session = mock_create_session.return_value
+        mock_session.get.return_value = mock_response
 
         result = fetch_aliases(vuln_id)
         self.assertEqual(result, fake_aliases)
         expected_url = f"{OSV_CONFIG['OSV_API_URL']}/{vuln_id}"
-        mock_get.assert_called_once_with(expected_url, timeout=30)
+        mock_session.get.assert_called_once_with(expected_url, timeout=30)
+        mock_session.close.assert_called_once_with()
 
-    @patch("helpers.osv_funcs.session.get")
-    def test_fetchaliases_noaliasesfound(self, mock_get):
+    @patch("visar.helpers.osv_funcs._create_session")
+    def test_fetchaliases_noaliasesfound(self, mock_create_session):
         """
         Returns an empty list when the API call is successful but no aliases
         exist.
@@ -71,53 +70,63 @@ class TestFetchAliases(unittest.TestCase):
         mock_response = Mock()
         mock_response.status_code = 200
         mock_response.json.return_value = {}  # no 'aliases' key in JSON
-        mock_get.return_value = mock_response
+        mock_session = mock_create_session.return_value
+        mock_session.get.return_value = mock_response
 
         result = fetch_aliases(vuln_id)
         self.assertEqual(result, [])
         expected_url = f"{OSV_CONFIG['OSV_API_URL']}/{vuln_id}"
-        mock_get.assert_called_once_with(expected_url, timeout=30)
+        mock_session.get.assert_called_once_with(expected_url, timeout=30)
+        mock_session.close.assert_called_once_with()
 
-    @patch("helpers.osv_funcs.session.get")
-    def test_fetchaliases_non200response(self, mock_get):
+    @patch("visar.helpers.osv_funcs._create_session")
+    def test_fetchaliases_non200response(self, mock_create_session):
         """
         Returns an empty list when the API response status code is not 200.
         """
         vuln_id = "CVE-2020-1234"
         mock_response = Mock()
         mock_response.status_code = 404  # non-success status code
-        mock_get.return_value = mock_response
+        mock_session = mock_create_session.return_value
+        mock_session.get.return_value = mock_response
 
         result = fetch_aliases(vuln_id)
         self.assertEqual(result, [])
         expected_url = f"{OSV_CONFIG['OSV_API_URL']}/{vuln_id}"
-        mock_get.assert_called_once_with(expected_url, timeout=30)
+        mock_session.get.assert_called_once_with(expected_url, timeout=30)
+        mock_session.close.assert_called_once_with()
 
-    @patch("helpers.osv_funcs.session.get")
-    def test_fetchaliases_connectionerror(self, mock_get):
+    @patch("visar.helpers.osv_funcs._create_session")
+    def test_fetchaliases_connectionerror(self, mock_create_session):
         """
         Returns an empty list when a ConnectionError occurs.
         """
         vuln_id = "CVE-2020-1234"
-        mock_get.side_effect = ConnectionError("Connection failed")
+        mock_session = mock_create_session.return_value
+        mock_session.get.side_effect = requests.exceptions.ConnectionError(
+            "Connection failed"
+        )
 
         result = fetch_aliases(vuln_id)
         self.assertEqual(result, [])
         expected_url = f"{OSV_CONFIG['OSV_API_URL']}/{vuln_id}"
-        mock_get.assert_called_once_with(expected_url, timeout=30)
+        mock_session.get.assert_called_once_with(expected_url, timeout=30)
+        mock_session.close.assert_called_once_with()
 
-    @patch("helpers.osv_funcs.session.get")
-    def test_fetchaliases_unexpectedexception(self, mock_get):
+    @patch("visar.helpers.osv_funcs._create_session")
+    def test_fetchaliases_unexpectedexception(self, mock_create_session):
         """
         Returns an empty list when an unexpected exception occurs.
         """
         vuln_id = "CVE-2020-1234"
-        mock_get.side_effect = Exception("Unexpected error")
+        mock_session = mock_create_session.return_value
+        mock_session.get.side_effect = Exception("Unexpected error")
 
         result = fetch_aliases(vuln_id)
         self.assertEqual(result, [])
         expected_url = f"{OSV_CONFIG['OSV_API_URL']}/{vuln_id}"
-        mock_get.assert_called_once_with(expected_url, timeout=30)
+        mock_session.get.assert_called_once_with(expected_url, timeout=30)
+        mock_session.close.assert_called_once_with()
 
 
 class TestFetchDetails(unittest.TestCase):
@@ -125,38 +134,53 @@ class TestFetchDetails(unittest.TestCase):
     Test cases for the fetch_details function.
     """
 
-    @patch("helpers.osv_funcs.fetch_single_detail")
-    def test_fetchdetails_emptylist(self, mock_fetch):
+    @patch("visar.helpers.osv_funcs._create_session")
+    @patch("visar.helpers.osv_funcs.fetch_single_detail")
+    def test_fetchdetails_emptylist(self, mock_fetch, mock_create_session):
         """
-        Returns empty lists when provided with an empty vulnerability list.
+        Returns an empty findings list when provided with no vulnerability IDs.
         """
         result = fetch_details([])
-        self.assertEqual(result, ([], []))
+        self.assertEqual(result, [])
         mock_fetch.assert_not_called()
+        mock_create_session.assert_not_called()
 
-    @patch("helpers.osv_funcs.fetch_single_detail")
-    def test_fetchdetails_allsuccess(self, mock_fetch):
+    @patch("visar.helpers.osv_funcs._create_session")
+    @patch("visar.helpers.osv_funcs.fetch_single_detail")
+    def test_fetchdetails_allsuccess(self, mock_fetch, mock_create_session):
         """
-        Returns correct lists when all vulnerability details are fetched
+        Returns findings in input order when all details are fetched
         successfully.
         """
         vuln_ids = ["vid1", "vid2"]
+        mock_session = mock_create_session.return_value
         # simulate successful responses for each vulnerability ID.
         mock_fetch.side_effect = [("detail1", "severity1"), ("detail2", "severity2")]
         result = fetch_details(vuln_ids)
-        self.assertEqual(result, (["detail1", "detail2"], ["severity1", "severity2"]))
+        self.assertEqual(
+            result,
+            [
+                Finding("vid1", "severity1", "detail1"),
+                Finding("vid2", "severity2", "detail2"),
+            ],
+        )
         self.assertEqual(mock_fetch.call_count, 2)
         # verify that each call received the correct vulnerability id.
-        self.assertEqual(mock_fetch.call_args_list[0][0], ("vid1",))
-        self.assertEqual(mock_fetch.call_args_list[1][0], ("vid2",))
+        self.assertEqual(mock_fetch.call_args_list[0].args, ("vid1",))
+        self.assertEqual(mock_fetch.call_args_list[1].args, ("vid2",))
+        self.assertEqual(mock_fetch.call_args_list[0].kwargs, {"session": mock_session})
+        self.assertEqual(mock_fetch.call_args_list[1].kwargs, {"session": mock_session})
+        mock_session.close.assert_called_once_with()
 
-    @patch("helpers.osv_funcs.fetch_single_detail")
-    def test_fetchdetails_mixedresponses(self, mock_fetch):
+    @patch("visar.helpers.osv_funcs._create_session")
+    @patch("visar.helpers.osv_funcs.fetch_single_detail")
+    def test_fetchdetails_mixedresponses(self, mock_fetch, mock_create_session):
         """
-        Preserves the order of responses even when some vulnerability lookups
-        return default values.
+        Preserves finding order even when some vulnerability lookups return
+        default values.
         """
         vuln_ids = ["vid1", "vid2", "vid3"]
+        mock_session = mock_create_session.return_value
         # simulate a mix of successful and default responses.
         mock_fetch.side_effect = [
             ("detail1", "severity1"),  # for vid1
@@ -167,16 +191,21 @@ class TestFetchDetails(unittest.TestCase):
         result = fetch_details(vuln_ids)
         self.assertEqual(
             result,
-            (
-                ["detail1", "DETAILS NOT AVAILABLE", "detail3"],
-                ["severity1", "SEVERITY NOT AVAILABLE", "severity3"],
-            ),
+            [
+                Finding("vid1", "severity1", "detail1"),
+                Finding("vid2", "SEVERITY NOT AVAILABLE", "DETAILS NOT AVAILABLE"),
+                Finding("vid3", "severity3", "detail3"),
+            ],
         )
         self.assertEqual(mock_fetch.call_count, 3)
         # optionally verify each call argument.
-        self.assertEqual(mock_fetch.call_args_list[0][0], ("vid1",))
-        self.assertEqual(mock_fetch.call_args_list[1][0], ("vid2",))
-        self.assertEqual(mock_fetch.call_args_list[2][0], ("vid3",))
+        self.assertEqual(mock_fetch.call_args_list[0].args, ("vid1",))
+        self.assertEqual(mock_fetch.call_args_list[1].args, ("vid2",))
+        self.assertEqual(mock_fetch.call_args_list[2].args, ("vid3",))
+        self.assertEqual(mock_fetch.call_args_list[0].kwargs, {"session": mock_session})
+        self.assertEqual(mock_fetch.call_args_list[1].kwargs, {"session": mock_session})
+        self.assertEqual(mock_fetch.call_args_list[2].kwargs, {"session": mock_session})
+        mock_session.close.assert_called_once_with()
 
 
 class TestFetchSingleDetail(unittest.TestCase):
@@ -184,8 +213,8 @@ class TestFetchSingleDetail(unittest.TestCase):
     Test cases for the fetch_single_detail function.
     """
 
-    @patch("helpers.osv_funcs.session.get")
-    def test_fetchsingledetail_success(self, mock_get):
+    @patch("visar.helpers.osv_funcs._create_session")
+    def test_fetchsingledetail_success(self, mock_create_session):
         """
         Returns vulnerability detail and severity when API returns HTTP 200.
         """
@@ -199,15 +228,17 @@ class TestFetchSingleDetail(unittest.TestCase):
             "details": expected_detail,
             "database_specific": {"severity": expected_severity},
         }
-        mock_get.return_value = mock_response
+        mock_session = mock_create_session.return_value
+        mock_session.get.return_value = mock_response
 
         result = fetch_single_detail(vid)
         self.assertEqual(result, (expected_detail, expected_severity))
         expected_url = f"{OSV_CONFIG['OSV_API_URL']}/{vid}"
-        mock_get.assert_called_once_with(expected_url, timeout=30)
+        mock_session.get.assert_called_once_with(expected_url, timeout=30)
+        mock_session.close.assert_called_once_with()
 
-    @patch("helpers.osv_funcs.session.get")
-    def test_fetchsingledetail_nodetails(self, mock_get):
+    @patch("visar.helpers.osv_funcs._create_session")
+    def test_fetchsingledetail_nodetails(self, mock_create_session):
         """
         Returns default detail/severity values when API returns HTTP 200 but
         the JSON lacks keys.
@@ -218,30 +249,34 @@ class TestFetchSingleDetail(unittest.TestCase):
         mock_response = Mock()
         mock_response.status_code = 200
         mock_response.json.return_value = {}
-        mock_get.return_value = mock_response
+        mock_session = mock_create_session.return_value
+        mock_session.get.return_value = mock_response
 
         result = fetch_single_detail(vid)
         self.assertEqual(result, ("No details available", "NOT AVAILABLE"))
         expected_url = f"{OSV_CONFIG['OSV_API_URL']}/{vid}"
-        mock_get.assert_called_once_with(expected_url, timeout=30)
+        mock_session.get.assert_called_once_with(expected_url, timeout=30)
+        mock_session.close.assert_called_once_with()
 
-    @patch("helpers.osv_funcs.session.get")
-    def test_fetchsingledetail_apierror(self, mock_get):
+    @patch("visar.helpers.osv_funcs._create_session")
+    def test_fetchsingledetail_apierror(self, mock_create_session):
         """
         Returns default values when the API response status code is not 200.
         """
         vid = "CVE-2020-1234"
         mock_response = Mock()
         mock_response.status_code = 500  # simulate an API error
-        mock_get.return_value = mock_response
+        mock_session = mock_create_session.return_value
+        mock_session.get.return_value = mock_response
 
         result = fetch_single_detail(vid)
         self.assertEqual(result, ("DETAILS NOT AVAILABLE", "SEVERITY NOT AVAILABLE"))
         expected_url = f"{OSV_CONFIG['OSV_API_URL']}/{vid}"
-        mock_get.assert_called_once_with(expected_url, timeout=30)
+        mock_session.get.assert_called_once_with(expected_url, timeout=30)
+        mock_session.close.assert_called_once_with()
 
-    @patch("helpers.osv_funcs.session.get")
-    def test_fetchsingledetail_withslash(self, mock_get):
+    @patch("visar.helpers.osv_funcs._create_session")
+    def test_fetchsingledetail_withslash(self, mock_create_session):
         """
         Extracts the vulnerability id when the input contains a '/' delimiter.
         """
@@ -257,39 +292,47 @@ class TestFetchSingleDetail(unittest.TestCase):
             "details": expected_detail,
             "database_specific": {"severity": expected_severity},
         }
-        mock_get.return_value = mock_response
+        mock_session = mock_create_session.return_value
+        mock_session.get.return_value = mock_response
 
         result = fetch_single_detail(vid_input)
         self.assertEqual(result, (expected_detail, expected_severity))
         expected_url = f"{OSV_CONFIG['OSV_API_URL']}/{expected_vid}"
-        mock_get.assert_called_once_with(expected_url, timeout=30)
+        mock_session.get.assert_called_once_with(expected_url, timeout=30)
+        mock_session.close.assert_called_once_with()
 
-    @patch("helpers.osv_funcs.session.get")
-    def test_fetchsingledetail_requestexception(self, mock_get):
+    @patch("visar.helpers.osv_funcs._create_session")
+    def test_fetchsingledetail_requestexception(self, mock_create_session):
         """
         Returns default values when a RequestException occurs.
         """
 
         vid = "CVE-2020-1234"
-        mock_get.side_effect = requests.exceptions.RequestException("Connection error")
+        mock_session = mock_create_session.return_value
+        mock_session.get.side_effect = requests.exceptions.RequestException(
+            "Connection error"
+        )
 
         result = fetch_single_detail(vid)
         self.assertEqual(result, ("DETAILS NOT AVAILABLE", "SEVERITY NOT AVAILABLE"))
         expected_url = f"{OSV_CONFIG['OSV_API_URL']}/{vid}"
-        mock_get.assert_called_once_with(expected_url, timeout=30)
+        mock_session.get.assert_called_once_with(expected_url, timeout=30)
+        mock_session.close.assert_called_once_with()
 
-    @patch("helpers.osv_funcs.session.get")
-    def test_fetchsingledetail_unexpectedexception(self, mock_get):
+    @patch("visar.helpers.osv_funcs._create_session")
+    def test_fetchsingledetail_unexpectedexception(self, mock_create_session):
         """
         Returns default values when an unexpected exception occurs.
         """
         vid = "CVE-2020-1234"
-        mock_get.side_effect = Exception("Unexpected error")
+        mock_session = mock_create_session.return_value
+        mock_session.get.side_effect = Exception("Unexpected error")
 
         result = fetch_single_detail(vid)
         self.assertEqual(result, ("DETAILS NOT AVAILABLE", "SEVERITY NOT AVAILABLE"))
         expected_url = f"{OSV_CONFIG['OSV_API_URL']}/{vid}"
-        mock_get.assert_called_once_with(expected_url, timeout=30)
+        mock_session.get.assert_called_once_with(expected_url, timeout=30)
+        mock_session.close.assert_called_once_with()
 
 
 class TestUpdateIdlist(unittest.TestCase):
@@ -297,8 +340,9 @@ class TestUpdateIdlist(unittest.TestCase):
     Test cases for the update_idlist function.
     """
 
-    @patch("helpers.osv_funcs.fetch_aliases")
-    def test_updateidlist_nonpysec(self, mock_fetch):
+    @patch("visar.helpers.osv_funcs._create_session")
+    @patch("visar.helpers.osv_funcs.fetch_aliases")
+    def test_updateidlist_nonpysec(self, mock_fetch, mock_create_session):
         """
         Any non-PYSEC IDs are left unchanged and fetch_aliases is not called.
         """
@@ -306,41 +350,51 @@ class TestUpdateIdlist(unittest.TestCase):
         result = update_idlist(input_ids)
         self.assertEqual(result, input_ids)
         mock_fetch.assert_not_called()
+        mock_create_session.assert_not_called()
 
-    @patch("helpers.osv_funcs.fetch_aliases")
-    def test_updateidlist_pysecnoalias(self, mock_fetch):
+    @patch("visar.helpers.osv_funcs._create_session")
+    @patch("visar.helpers.osv_funcs.fetch_aliases")
+    def test_updateidlist_pysecnoalias(self, mock_fetch, mock_create_session):
         """
         Any PYSEC ID with no fetched aliases returns the original ID.
         """
         input_ids = ["PYSEC001"]
+        mock_session = mock_create_session.return_value
         mock_fetch.return_value = []  # no aliases found
         result = update_idlist(input_ids)
         self.assertEqual(result, ["PYSEC001"])
-        mock_fetch.assert_called_once_with("PYSEC001")
+        mock_fetch.assert_called_once_with("PYSEC001", session=mock_session)
+        mock_session.close.assert_called_once_with()
 
-    @patch("helpers.osv_funcs.fetch_aliases")
-    def test_updateidlist_pysec_nomatchingalias(self, mock_fetch):
+    @patch("visar.helpers.osv_funcs._create_session")
+    @patch("visar.helpers.osv_funcs.fetch_aliases")
+    def test_updateidlist_pysec_nomatchingalias(self, mock_fetch, mock_create_session):
         """
         Any PYSEC ID with aliases returned but none starting with 'GHSA' is not
         updated.
         """
         input_ids = ["PYSEC002"]
+        mock_session = mock_create_session.return_value
         mock_fetch.return_value = ["ALIAS-001"]  # alias does not match 'GHSA'
         result = update_idlist(input_ids)
         self.assertEqual(result, ["PYSEC002"])
-        mock_fetch.assert_called_once_with("PYSEC002")
+        mock_fetch.assert_called_once_with("PYSEC002", session=mock_session)
+        mock_session.close.assert_called_once_with()
 
-    @patch("helpers.osv_funcs.fetch_aliases")
-    def test_updateidlist_pysecmatchingalias(self, mock_fetch):
+    @patch("visar.helpers.osv_funcs._create_session")
+    @patch("visar.helpers.osv_funcs.fetch_aliases")
+    def test_updateidlist_pysecmatchingalias(self, mock_fetch, mock_create_session):
         """
         Any PYSEC ID is updated when fetch_aliases returns an alias starting
         with 'GHSA'.
         """
         input_ids = ["PYSEC003"]
+        mock_session = mock_create_session.return_value
         mock_fetch.return_value = ["ALIAS-001", "GHSA-5678", "GHSA-9999"]
         result = update_idlist(input_ids)
         self.assertEqual(result, ["PYSEC003 / GHSA-5678"])
-        mock_fetch.assert_called_once_with("PYSEC003")
+        mock_fetch.assert_called_once_with("PYSEC003", session=mock_session)
+        mock_session.close.assert_called_once_with()
 
     def test_updateidlist_alreadyupdated(self):
         """
@@ -350,17 +404,19 @@ class TestUpdateIdlist(unittest.TestCase):
         result = update_idlist(input_ids)
         self.assertEqual(result, ["PYSEC004 / GHSA-1234"])
 
-    @patch("helpers.osv_funcs.fetch_aliases")
-    def test_updateidlistmixedids(self, mock_fetch):
+    @patch("visar.helpers.osv_funcs._create_session")
+    @patch("visar.helpers.osv_funcs.fetch_aliases")
+    def test_updateidlistmixedids(self, mock_fetch, mock_create_session):
         """
         Any mixed list of vulnerability IDs is processed correctly while
         preserving order.
         """
         input_ids = ["PYSEC005", "CVE-2020-1234", "PYSEC006"]
+        mock_session = mock_create_session.return_value
 
         # setup side effect: fetch_aliases for each PYSEC ID returns different
         # responses.
-        def side_effect(vid):
+        def side_effect(vid, session=None):
             if vid == "PYSEC005":
                 return ["ALIAS-002"]  # mo matching alias
             elif vid == "PYSEC006":
@@ -373,6 +429,11 @@ class TestUpdateIdlist(unittest.TestCase):
         self.assertEqual(result, expected)
         # ensure fetch_aliases is called only for PYSEC005 and PYSEC006
         self.assertEqual(mock_fetch.call_count, 2)
+        self.assertEqual(mock_fetch.call_args_list[0].args, ("PYSEC005",))
+        self.assertEqual(mock_fetch.call_args_list[1].args, ("PYSEC006",))
+        self.assertEqual(mock_fetch.call_args_list[0].kwargs, {"session": mock_session})
+        self.assertEqual(mock_fetch.call_args_list[1].kwargs, {"session": mock_session})
+        mock_session.close.assert_called_once_with()
 
 
 if __name__ == "__main__":

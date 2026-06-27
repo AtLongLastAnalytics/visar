@@ -30,7 +30,7 @@ You will receive an acknowledgement within **7 days** and a resolution or status
 The following are considered in scope:
 
 - **Token leakage** — any path by which a `VISAR_AUTH_TOKEN` value could be exposed (e.g. logged to disk, included in output files, or transmitted to a third party beyond the GitHub and OSV APIs).
-- **HTML dashboard injection** — XSS or script injection vulnerabilities in the generated `dashboard.html` via unsanitised vulnerability data from the OSV API.
+- **HTML dashboard injection** — XSS or script injection vulnerabilities in the generated `visar_dashboard.html` via unsanitised vulnerability data from the OSV API.
 - **Dependency vulnerabilities** — known CVEs in direct dependencies declared in `pyproject.toml` that have a credible exploitation path within VISaR's runtime context.
 - **Docker container misuse** — any mechanism by which the OSSF Scorecard container invocation could be exploited to execute unintended commands on the host.
 
@@ -58,4 +58,4 @@ We ask that you do not publicly disclose the vulnerability until a fix has been 
 - Store your GitHub token **only** in a `.env` file at the project root, which is gitignored by default. Never commit it.
 - Use a token with the minimum required scope (`public_repo` read-only).
 - Regenerate your token if you suspect it has been exposed.
-- Review generated `dashboard.html` files before sharing them, as they embed raw vulnerability data from external APIs.
+- Review generated `visar_dashboard.html` files before sharing them, as they embed raw vulnerability data from external APIs.

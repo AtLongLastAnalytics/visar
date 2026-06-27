@@ -23,17 +23,13 @@ import csv
 import datetime
 
 # import standard libraries
-import sys
 import logging
 
 logging.disable(logging.CRITICAL)
 
-# add the src/ directory to sys.path to import the module
-sys.path.insert(0, "./src")
-
 import json
 
-from helpers.helper_funcs import (
+from visar.helpers.helper_funcs import (
     check_datafolder_exists,
     exit_with_error,
     extract_vulnerability_ids,
@@ -48,7 +44,9 @@ from helpers.helper_funcs import (
     write_vulnerability_details_to_json,
 )
 
-from config import GITHUB_CONFIG
+from visar.config import GITHUB_CONFIG
+from visar.exceptions import VisarOutputError, VisarPrerequisiteError
+from visar.models import Finding
 
 
 class TestCheckDataFolderExists(unittest.TestCase):
@@ -56,7 +54,7 @@ class TestCheckDataFolderExists(unittest.TestCase):
     Test cases for the check_datafolder_exists function.
     """
 
-    @patch("helpers.helper_funcs.DATA_DIR")
+    @patch("visar.helpers.helper_funcs.DATA_DIR")
     def test_data_folder_already_exists(self, mock_data_dir):
         """
         Folder exists. Does not need to call mkdir.
@@ -67,7 +65,7 @@ class TestCheckDataFolderExists(unittest.TestCase):
 
         mock_data_dir.mkdir.assert_not_called()
 
-    @patch("helpers.helper_funcs.DATA_DIR")
+    @patch("visar.helpers.helper_funcs.DATA_DIR")
     def test_data_folder_created_when_missing(self, mock_data_dir):
         """
         Folder does not exist. mkdir is called with parents=True, exist_ok=True.
@@ -84,8 +82,8 @@ class TestExitWithError(unittest.TestCase):
     Test cases for the exit_with_error function.
     """
 
-    @patch("helpers.helper_funcs.logger.error")
-    @patch("helpers.helper_funcs.sys.exit")
+    @patch("visar.helpers.helper_funcs.logger.error")
+    @patch("visar.helpers.helper_funcs.sys.exit")
     def test_exitwitherror_defaultcode(self, mock_exit, mock_logger_error):
         """
         Logs error message and exits with default code (1).
@@ -100,8 +98,23 @@ class TestExitWithError(unittest.TestCase):
         # assert that sys.exit was called once with the default code 1.
         mock_exit.assert_called_once_with(1)
 
-    @patch("helpers.helper_funcs.logger.error")
-    @patch("helpers.helper_funcs.sys.exit")
+    @patch("visar.helpers.helper_funcs.logger.error")
+    @patch("visar.helpers.helper_funcs.sys.exit")
+    def test_exitwitherror_prerequisiteerror_maps_code(
+        self, mock_exit, mock_logger_error
+    ):
+        """
+        VisarPrerequisiteError maps to the prerequisite-specific exit code.
+        """
+        error = VisarPrerequisiteError("Missing token")
+
+        exit_with_error(error)
+
+        mock_logger_error.assert_called_once_with("Missing token")
+        mock_exit.assert_called_once_with(2)
+
+    @patch("visar.helpers.helper_funcs.logger.error")
+    @patch("visar.helpers.helper_funcs.sys.exit")
     def test_exitwitherror_customcode(self, mock_exit, mock_logger_error):
         """
         Logs error message and exits with a provided custom exit code.
@@ -116,6 +129,19 @@ class TestExitWithError(unittest.TestCase):
         mock_logger_error.assert_called_once_with(error_message)
         # assert sys.exit is called with the custom exit code.
         mock_exit.assert_called_once_with(custom_code)
+
+    @patch("visar.helpers.helper_funcs.logger.error")
+    @patch("visar.helpers.helper_funcs.sys.exit")
+    def test_exitwitherror_outputerror_maps_code(self, mock_exit, mock_logger_error):
+        """
+        VisarOutputError maps to the output-specific exit code.
+        """
+        error = VisarOutputError("Write failed")
+
+        exit_with_error(error)
+
+        mock_logger_error.assert_called_once_with("Write failed")
+        mock_exit.assert_called_once_with(6)
 
 
 class TestExtractVulnerabilityIds(unittest.TestCase):
@@ -192,7 +218,7 @@ class TestFormatFilename(unittest.TestCase):
     Test cases for the format_filename function.
     """
 
-    @patch("helpers.helper_funcs.datetime", new=FixedDatetime)
+    @patch("visar.helpers.helper_funcs.datetime", new=FixedDatetime)
     def test_formatfilename_basic(self):
         """
         A standard GitHub repository URL is correctly formatted.
@@ -203,18 +229,18 @@ class TestFormatFilename(unittest.TestCase):
         result = format_filename(repo_url)
         self.assertEqual(result, expected_filename)
 
-    @patch("helpers.helper_funcs.datetime", new=FixedDatetime)
+    @patch("visar.helpers.helper_funcs.datetime", new=FixedDatetime)
     def test_formatfilename_trailingslash(self):
         """
         A GitHub URL with a trailing slash is formatted correctly.
-        Expected: "20250503-username-repository-"
+        Expected: "20250503-username-repository"
         """
         repo_url = "https://github.com/username/repository/"
-        expected_filename = "20250503-username-repository-"
+        expected_filename = "20250503-username-repository"
         result = format_filename(repo_url)
         self.assertEqual(result, expected_filename)
 
-    @patch("helpers.helper_funcs.datetime", new=FixedDatetime)
+    @patch("visar.helpers.helper_funcs.datetime", new=FixedDatetime)
     def test_formatfilename_multiplesegments(self):
         """
         A GitHub URL with multiple path segments is formatted
@@ -226,16 +252,32 @@ class TestFormatFilename(unittest.TestCase):
         result = format_filename(repo_url)
         self.assertEqual(result, expected_filename)
 
-    @patch("helpers.helper_funcs.datetime", new=FixedDatetime)
-    def test_formatfilename_emptypath(self):
+    @patch("visar.helpers.helper_funcs.datetime", new=FixedDatetime)
+    def test_formatfilename_emptypath_raises(self):
         """
-        A URL with no repository path returns the date only.
-        Expected: "20250503-"
+        A URL with no repository path is rejected.
         """
         repo_url = "https://github.com"
-        expected_filename = "20250503-"
-        result = format_filename(repo_url)
-        self.assertEqual(result, expected_filename)
+        with self.assertRaises(ValueError):
+            format_filename(repo_url)
+
+    @patch("visar.helpers.helper_funcs.datetime", new=FixedDatetime)
+    def test_formatfilename_rejects_dot_segments(self):
+        """
+        Dot path segments are rejected even if validation is bypassed.
+        """
+        repo_url = "https://github.com/../repository"
+        with self.assertRaises(ValueError):
+            format_filename(repo_url)
+
+    @patch("visar.helpers.helper_funcs.datetime", new=FixedDatetime)
+    def test_formatfilename_rejects_invalid_characters(self):
+        """
+        Path segments containing unsafe filename characters are rejected.
+        """
+        repo_url = "https://github.com/user name/repository"
+        with self.assertRaises(ValueError):
+            format_filename(repo_url)
 
 
 class TestMergeItemsWithSlash(unittest.TestCase):
@@ -347,8 +389,8 @@ class TestRetryCall(unittest.TestCase):
     Test cases for the retry_call function.
     """
 
-    @patch("helpers.helper_funcs.time.sleep")
-    @patch("helpers.helper_funcs.logger.warning")
+    @patch("visar.helpers.helper_funcs.time.sleep")
+    @patch("visar.helpers.helper_funcs.logger.warning")
     def test_retrycall_immediatesuccess(self, mock_logger_warning, mock_sleep):
         """
         Result is returned immediately when the function succeeds on first try.
@@ -362,8 +404,8 @@ class TestRetryCall(unittest.TestCase):
         mock_logger_warning.assert_not_called()
         mock_sleep.assert_not_called()
 
-    @patch("helpers.helper_funcs.time.sleep")
-    @patch("helpers.helper_funcs.logger.warning")
+    @patch("visar.helpers.helper_funcs.time.sleep")
+    @patch("visar.helpers.helper_funcs.logger.warning")
     def test_retrycall_eventualsuccess(self, mock_logger_warning, mock_sleep):
         """
         Retries once after failure and then succeeds.
@@ -377,8 +419,8 @@ class TestRetryCall(unittest.TestCase):
         self.assertEqual(mock_sleep.call_count, 1)
         self.assertEqual(mock_func.call_count, 2)
 
-    @patch("helpers.helper_funcs.time.sleep")
-    @patch("helpers.helper_funcs.logger.warning")
+    @patch("visar.helpers.helper_funcs.time.sleep")
+    @patch("visar.helpers.helper_funcs.logger.warning")
     def test_retrycall_allfail(self, mock_logger_warning, mock_sleep):
         """
         Last exception is raised when all attempts fail.
@@ -401,7 +443,7 @@ class TestValidateGithubURL(unittest.TestCase):
     Test cases for the validate_github_url function.
     """
 
-    @patch("helpers.helper_funcs.logger.error")
+    @patch("visar.helpers.helper_funcs.logger.error")
     def test_validategithuburl_basic(self, mock_logger_error):
         """
         Return True for a valid GitHub repo URL with basic format.
@@ -410,7 +452,7 @@ class TestValidateGithubURL(unittest.TestCase):
         self.assertTrue(validate_github_url(url))
         mock_logger_error.assert_not_called()
 
-    @patch("helpers.helper_funcs.logger.error")
+    @patch("visar.helpers.helper_funcs.logger.error")
     def test_validategithuburl_trailingslash(self, mock_logger_error):
         """
         Return True for a valid Github repo URL with a trailing slash.
@@ -419,7 +461,7 @@ class TestValidateGithubURL(unittest.TestCase):
         self.assertTrue(validate_github_url(url))
         mock_logger_error.assert_not_called()
 
-    @patch("helpers.helper_funcs.logger.error")
+    @patch("visar.helpers.helper_funcs.logger.error")
     def test_validategithuburl_hyphensandunderscores(self, mock_logger_error):
         """
         Return True for a valid GitHub repo URL with hyphens and underscores.
@@ -429,7 +471,7 @@ class TestValidateGithubURL(unittest.TestCase):
         self.assertTrue(validate_github_url(url))
         mock_logger_error.assert_not_called()
 
-    @patch("helpers.helper_funcs.logger.error")
+    @patch("visar.helpers.helper_funcs.logger.error")
     def test_validategithuburl_httpprotocol(self, mock_logger_error):
         """
         Return False for a Github repo URL using http and not https.
@@ -438,7 +480,7 @@ class TestValidateGithubURL(unittest.TestCase):
         self.assertFalse(validate_github_url(url))
         mock_logger_error.assert_called_once_with("Invalid GitHub URL: %s", url)
 
-    @patch("helpers.helper_funcs.logger.error")
+    @patch("visar.helpers.helper_funcs.logger.error")
     def test_validategithuburl_wrongdomain(self, mock_logger_error):
         """
         Return False for a URL with a domain other than github.
@@ -447,7 +489,7 @@ class TestValidateGithubURL(unittest.TestCase):
         self.assertFalse(validate_github_url(url))
         mock_logger_error.assert_called_once_with("Invalid GitHub URL: %s", url)
 
-    @patch("helpers.helper_funcs.logger.error")
+    @patch("visar.helpers.helper_funcs.logger.error")
     def test_validategithuburl_missingrepository(self, mock_logger_error):
         """
         Return Flase for a URL with a username but missing the repository.
@@ -456,7 +498,7 @@ class TestValidateGithubURL(unittest.TestCase):
         self.assertFalse(validate_github_url(url))
         mock_logger_error.assert_called_once_with("Invalid GitHub URL: %s", url)
 
-    @patch("helpers.helper_funcs.logger.error")
+    @patch("visar.helpers.helper_funcs.logger.error")
     def test_validategithuburl_extrapathsegment(self, mock_logger_error):
         """
         Return False for a URL with extra path segments after the repository.
@@ -465,7 +507,7 @@ class TestValidateGithubURL(unittest.TestCase):
         self.assertFalse(validate_github_url(url))
         mock_logger_error.assert_called_once_with("Invalid GitHub URL: %s", url)
 
-    @patch("helpers.helper_funcs.logger.error")
+    @patch("visar.helpers.helper_funcs.logger.error")
     def test_validategithuburl_emptyurl(self, mock_logger_error):
         """
         Return False for an empty URL.
@@ -476,8 +518,8 @@ class TestValidateGithubURL(unittest.TestCase):
 
 
 class TestVerifyGithubToken(unittest.TestCase):
-    @patch("helpers.helper_funcs.requests.get")
-    @patch("helpers.helper_funcs.logger.error")
+    @patch("visar.helpers.helper_funcs.requests.get")
+    @patch("visar.helpers.helper_funcs.logger.error")
     def test_verifygithubtoken_valid(self, mock_logger_error, mock_requests_get):
         """
         Return True when the token is valid and has "public_repo" scope.
@@ -499,11 +541,11 @@ class TestVerifyGithubToken(unittest.TestCase):
         }
         expected_url = f"{GITHUB_CONFIG['BASE_URL']}/user"
         mock_requests_get.assert_called_once_with(
-            expected_url, headers=expected_headers
+            expected_url, headers=expected_headers, timeout=30
         )
 
-    @patch("helpers.helper_funcs.requests.get")
-    @patch("helpers.helper_funcs.logger.error")
+    @patch("visar.helpers.helper_funcs.requests.get")
+    @patch("visar.helpers.helper_funcs.logger.error")
     def test_verifygithubtoken_missingscope(self, mock_logger_error, mock_requests_get):
         """
         Return False when the response is 200 but is missing the "public_repo"
@@ -522,8 +564,8 @@ class TestVerifyGithubToken(unittest.TestCase):
             "GitHub token missing 'public_repo' scope"
         )
 
-    @patch("helpers.helper_funcs.requests.get")
-    @patch("helpers.helper_funcs.logger.error")
+    @patch("visar.helpers.helper_funcs.requests.get")
+    @patch("visar.helpers.helper_funcs.logger.error")
     def test_verifygithubtoken_unauthorized(self, mock_logger_error, mock_requests_get):
         """
         Return False when the API returns a 401 Unauthorized.
@@ -538,8 +580,8 @@ class TestVerifyGithubToken(unittest.TestCase):
         self.assertFalse(result)
         mock_logger_error.assert_called_once_with("GitHub API error: %s", 401)
 
-    @patch("helpers.helper_funcs.requests.get")
-    @patch("helpers.helper_funcs.logger.error")
+    @patch("visar.helpers.helper_funcs.requests.get")
+    @patch("visar.helpers.helper_funcs.logger.error")
     def test_verifygithubtoken_requestexception(
         self, mock_logger_error, mock_requests_get
     ):
@@ -569,15 +611,14 @@ class TestWriteVulnerabilityDetailsToCSV(unittest.TestCase):
         """
         Successfully writes vulnerability data to a CSV file.
         """
-        vuln_ids = ["VULN-001", "VULN-002"]
-        details = ["Detail for VULN-001", "Detail for VULN-002"]
-        severities = ["High", "Medium"]
+        findings = [
+            Finding("VULN-001", "High", "Detail for VULN-001"),
+            Finding("VULN-002", "Medium", "Detail for VULN-002"),
+        ]
 
         with tempfile.TemporaryDirectory() as tmp_dir:
             output_file = Path(tmp_dir) / "test_output.csv"
-            write_vulnerability_details_to_csv(
-                vuln_ids, details, severities, output_file
-            )
+            write_vulnerability_details_to_csv(findings, output_file)
 
             with output_file.open("r", encoding="utf-8") as f:
                 reader = csv.reader(f)
@@ -595,13 +636,9 @@ class TestWriteVulnerabilityDetailsToCSV(unittest.TestCase):
         """
         Writes only the headers when an empty list is provided.
         """
-        vuln_ids, details, severities = [], [], []
-
         with tempfile.TemporaryDirectory() as tmp_dir:
             output_file = Path(tmp_dir) / "empty_output.csv"
-            write_vulnerability_details_to_csv(
-                vuln_ids, details, severities, output_file
-            )
+            write_vulnerability_details_to_csv([], output_file)
 
             with output_file.open("r", encoding="utf-8") as f:
                 reader = csv.reader(f)
@@ -761,14 +798,14 @@ class TestWriteVulnerabilityDetailsToJson(unittest.TestCase):
         """
         Output file is valid JSON with the correct keys and values.
         """
-        vuln_ids = ["GHSA-1111-2222-3333"]
-        details = ["A critical vulnerability."]
-        severities = ["CRITICAL"]
+        findings = [
+            Finding("GHSA-1111-2222-3333", "CRITICAL", "A critical vulnerability.")
+        ]
 
         with tempfile.NamedTemporaryFile(suffix=".json", delete=False) as f:
             out_path = Path(f.name)
         try:
-            write_vulnerability_details_to_json(vuln_ids, details, severities, out_path)
+            write_vulnerability_details_to_json(findings, out_path)
             with out_path.open("r", encoding="utf-8") as f:
                 data = json.load(f)
             self.assertEqual(len(data), 1)
@@ -782,14 +819,17 @@ class TestWriteVulnerabilityDetailsToJson(unittest.TestCase):
         """
         Rows are sorted CRITICAL → HIGH → MODERATE → LOW.
         """
-        vuln_ids = ["LOW-1", "CRITICAL-1", "HIGH-1", "MODERATE-1"]
-        details = ["d", "d", "d", "d"]
-        severities = ["LOW", "CRITICAL", "HIGH", "MODERATE"]
+        findings = [
+            Finding("LOW-1", "LOW", "d"),
+            Finding("CRITICAL-1", "CRITICAL", "d"),
+            Finding("HIGH-1", "HIGH", "d"),
+            Finding("MODERATE-1", "MODERATE", "d"),
+        ]
 
         with tempfile.NamedTemporaryFile(suffix=".json", delete=False) as f:
             out_path = Path(f.name)
         try:
-            write_vulnerability_details_to_json(vuln_ids, details, severities, out_path)
+            write_vulnerability_details_to_json(findings, out_path)
             with out_path.open("r", encoding="utf-8") as f:
                 data = json.load(f)
             self.assertEqual(
@@ -806,7 +846,7 @@ class TestWriteVulnerabilityDetailsToJson(unittest.TestCase):
         with tempfile.NamedTemporaryFile(suffix=".json", delete=False) as f:
             out_path = Path(f.name)
         try:
-            write_vulnerability_details_to_json([], [], [], out_path)
+            write_vulnerability_details_to_json([], out_path)
             with out_path.open("r", encoding="utf-8") as f:
                 data = json.load(f)
             self.assertEqual(data, [])
@@ -817,14 +857,12 @@ class TestWriteVulnerabilityDetailsToJson(unittest.TestCase):
         """
         Unknown severity values sort after LOW.
         """
-        vuln_ids = ["UNKNOWN-1", "LOW-1"]
-        details = ["d", "d"]
-        severities = ["UNKNOWN", "LOW"]
+        findings = [Finding("UNKNOWN-1", "UNKNOWN", "d"), Finding("LOW-1", "LOW", "d")]
 
         with tempfile.NamedTemporaryFile(suffix=".json", delete=False) as f:
             out_path = Path(f.name)
         try:
-            write_vulnerability_details_to_json(vuln_ids, details, severities, out_path)
+            write_vulnerability_details_to_json(findings, out_path)
             with out_path.open("r", encoding="utf-8") as f:
                 data = json.load(f)
             self.assertEqual(data[0]["Severity"], "LOW")
@@ -836,14 +874,12 @@ class TestWriteVulnerabilityDetailsToJson(unittest.TestCase):
         """
         Newlines in details are preserved in the JSON output.
         """
-        vuln_ids = ["GHSA-1111-2222-3333"]
-        details = ["Line one.\nLine two."]
-        severities = ["LOW"]
+        findings = [Finding("GHSA-1111-2222-3333", "LOW", "Line one.\nLine two.")]
 
         with tempfile.NamedTemporaryFile(suffix=".json", delete=False) as f:
             out_path = Path(f.name)
         try:
-            write_vulnerability_details_to_json(vuln_ids, details, severities, out_path)
+            write_vulnerability_details_to_json(findings, out_path)
             with out_path.open("r", encoding="utf-8") as f:
                 data = json.load(f)
             self.assertIn("\n", data[0]["Details"])

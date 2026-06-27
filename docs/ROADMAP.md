@@ -34,7 +34,7 @@ Scan multiple repositories in a single run by supplying a text file of GitHub UR
 Choose between `csv` (default, ready for Excel or any spreadsheet tool) and `json` (structured, suitable for downstream tooling or dashboards). Output is sorted by severity in both formats.
 
 **Interactive HTML dashboard (`dashboard.py`)**
-Generate a single self-contained `dashboard.html` from all scan outputs in your `data/` directory. Features include: severity summary cards, dataset dropdown, date filter, severity filter pills, expandable detail rows, sortable columns, and direct OSV deep-links per finding.
+Generate a single self-contained `visar_dashboard.html` from all scan outputs in your `data/` directory. Features include: severity summary cards, dataset dropdown, date filter, severity filter pills, expandable detail rows, sortable columns, and direct OSV deep-links per finding.
 
 **Cross-platform support**
 Removed hard dependency on `pywin32`. VISaR now runs on Windows, macOS, and Linux. Setup scripts (`setup.ps1` / `setup.sh`) provided for both platforms.

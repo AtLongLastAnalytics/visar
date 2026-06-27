@@ -207,8 +207,6 @@ class TestWriteMultiDashboard(unittest.TestCase):
         self.assertNotIn("'unsafe-eval'", csp)
         # Both inline scripts (data + main JS) and the inline style block
         # contribute hashes. Expect at least 2 script hashes and 1 style hash.
-        script_hashes = re.findall(r"script-src[^;]*?('sha256-[A-Za-z0-9+/=]+')", csp)
-        style_hashes = re.findall(r"style-src[^;]*?('sha256-[A-Za-z0-9+/=]+')", csp)
         self.assertGreaterEqual(len(re.findall(r"'sha256-[A-Za-z0-9+/=]+'",
                                                csp.split(";")[1])), 2)
         self.assertGreaterEqual(len(re.findall(r"'sha256-[A-Za-z0-9+/=]+'",

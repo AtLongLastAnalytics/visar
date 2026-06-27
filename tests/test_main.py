@@ -17,17 +17,21 @@ Description: This module contains a test suite for functions in main.py.
 import unittest
 from unittest.mock import patch
 from pathlib import Path
-import sys
 
 import logging
 
 logging.disable(logging.CRITICAL)
 
-# add the src/ directory to sys.path to import main module
-sys.path.insert(0, "./src")
-
-import main
-from main import (
+from visar.exceptions import (
+    VisarAPIError,
+    VisarDataError,
+    VisarDockerError,
+    VisarOutputError,
+    VisarPrerequisiteError,
+)
+from visar.models import Finding
+import visar.main as main
+from visar.main import (
     cleanup_temp_files,
     call_osv_api,
     execute_docker_commands,
@@ -44,11 +48,11 @@ class TestRunPrerequisiteChecks(unittest.TestCase):
     Test cases for the run_prerequisite_checks function.
     """
 
-    @patch("main.dof.check_dockerimage_exists", return_value=True)
-    @patch("main.dof.check_docker_isrunning", return_value=True)
-    @patch("main.hf.check_datafolder_exists")
-    @patch("main.hf.verify_github_token", return_value=True)
-    @patch("main.hf.validate_github_url", return_value=True)
+    @patch("visar.main.dof.check_dockerimage_exists", return_value=True)
+    @patch("visar.main.dof.check_docker_isrunning", return_value=True)
+    @patch("visar.main.hf.check_datafolder_exists")
+    @patch("visar.main.hf.verify_github_token", return_value=True)
+    @patch("visar.main.hf.validate_github_url", return_value=True)
     def test_all_checks_pass(
         self, mock_url, mock_token, mock_folder, mock_docker, mock_image
     ):
@@ -62,8 +66,8 @@ class TestRunPrerequisiteChecks(unittest.TestCase):
         mock_image.assert_called_once()
         mock_folder.assert_called_once()
 
-    @patch("main.hf.exit_with_error", side_effect=SystemExit(1))
-    @patch("main.hf.validate_github_url", return_value=False)
+    @patch("visar.main.hf.exit_with_error", side_effect=SystemExit(1))
+    @patch("visar.main.hf.validate_github_url", return_value=False)
     def test_invalid_url_exits(self, mock_url, mock_exit):
         """
         exit_with_error is called when the GitHub URL is invalid.
@@ -71,10 +75,11 @@ class TestRunPrerequisiteChecks(unittest.TestCase):
         with self.assertRaises(SystemExit):
             run_prerequisite_checks("not-a-url", "token")
         mock_exit.assert_called_once()
+        self.assertIsInstance(mock_exit.call_args[0][0], VisarPrerequisiteError)
 
-    @patch("main.hf.exit_with_error", side_effect=SystemExit(1))
-    @patch("main.hf.verify_github_token", return_value=False)
-    @patch("main.hf.validate_github_url", return_value=True)
+    @patch("visar.main.hf.exit_with_error", side_effect=SystemExit(1))
+    @patch("visar.main.hf.verify_github_token", return_value=False)
+    @patch("visar.main.hf.validate_github_url", return_value=True)
     def test_invalid_token_exits(self, mock_url, mock_token, mock_exit):
         """
         exit_with_error is called when the GitHub token is invalid.
@@ -83,10 +88,10 @@ class TestRunPrerequisiteChecks(unittest.TestCase):
             run_prerequisite_checks("https://github.com/u/r", "badtoken")
         mock_exit.assert_called_once()
 
-    @patch("main.hf.exit_with_error", side_effect=SystemExit(1))
-    @patch("main.dof.check_docker_isrunning", return_value=False)
-    @patch("main.hf.verify_github_token", return_value=True)
-    @patch("main.hf.validate_github_url", return_value=True)
+    @patch("visar.main.hf.exit_with_error", side_effect=SystemExit(1))
+    @patch("visar.main.dof.check_docker_isrunning", return_value=False)
+    @patch("visar.main.hf.verify_github_token", return_value=True)
+    @patch("visar.main.hf.validate_github_url", return_value=True)
     def test_docker_not_running_exits(
         self, mock_url, mock_token, mock_docker, mock_exit
     ):
@@ -96,12 +101,13 @@ class TestRunPrerequisiteChecks(unittest.TestCase):
         with self.assertRaises(SystemExit):
             run_prerequisite_checks("https://github.com/u/r", "token")
         mock_exit.assert_called_once()
+        self.assertIsInstance(mock_exit.call_args[0][0], VisarDockerError)
 
-    @patch("main.hf.exit_with_error", side_effect=SystemExit(1))
-    @patch("main.dof.check_dockerimage_exists", return_value=False)
-    @patch("main.dof.check_docker_isrunning", return_value=True)
-    @patch("main.hf.verify_github_token", return_value=True)
-    @patch("main.hf.validate_github_url", return_value=True)
+    @patch("visar.main.hf.exit_with_error", side_effect=SystemExit(1))
+    @patch("visar.main.dof.check_dockerimage_exists", return_value=False)
+    @patch("visar.main.dof.check_docker_isrunning", return_value=True)
+    @patch("visar.main.hf.verify_github_token", return_value=True)
+    @patch("visar.main.hf.validate_github_url", return_value=True)
     def test_docker_image_missing_exits(
         self, mock_url, mock_token, mock_docker, mock_image, mock_exit
     ):
@@ -118,9 +124,9 @@ class TestExecuteDockerCommands(unittest.TestCase):
     Test cases for the execute_docker_commands function.
     """
 
-    @patch("main.hf.exit_with_error", side_effect=SystemExit(1))
-    @patch("main.hf.retry_call", return_value=False)
-    @patch("main.dof.format_docker_command", return_value=["docker", "run"])
+    @patch("visar.main.hf.exit_with_error", side_effect=SystemExit(1))
+    @patch("visar.main.hf.retry_call", return_value=False)
+    @patch("visar.main.dof.format_docker_command", return_value=["docker", "run"])
     def test_summary_command_fails_exits(self, mock_format, mock_retry, mock_exit):
         """
         exit_with_error is called when the summary Docker command fails.
@@ -130,10 +136,11 @@ class TestExecuteDockerCommands(unittest.TestCase):
                 "https://github.com/u/r", "token", Path("/tmp/summary.txt")
             )
         mock_exit.assert_called_once()
+        self.assertIsInstance(mock_exit.call_args[0][0], VisarDockerError)
 
-    @patch("main.hf.exit_with_error", side_effect=SystemExit(1))
-    @patch("main.hf.retry_call", side_effect=[True, False])
-    @patch("main.dof.format_docker_command", return_value=["docker", "run"])
+    @patch("visar.main.hf.exit_with_error", side_effect=SystemExit(1))
+    @patch("visar.main.hf.retry_call", side_effect=[True, False])
+    @patch("visar.main.dof.format_docker_command", return_value=["docker", "run"])
     def test_details_command_fails_exits(self, mock_format, mock_retry, mock_exit):
         """
         exit_with_error is called when the detailed Docker command fails.
@@ -144,9 +151,9 @@ class TestExecuteDockerCommands(unittest.TestCase):
             )
         mock_exit.assert_called_once()
 
-    @patch("main.hf.exit_with_error")
-    @patch("main.hf.retry_call", return_value=True)
-    @patch("main.dof.format_docker_command", return_value=["docker", "run"])
+    @patch("visar.main.hf.exit_with_error")
+    @patch("visar.main.hf.retry_call", return_value=True)
+    @patch("visar.main.dof.format_docker_command", return_value=["docker", "run"])
     def test_both_commands_succeed(self, mock_format, mock_retry, mock_exit):
         """
         No exit is called when both Docker commands succeed.
@@ -162,10 +169,10 @@ class TestPerformDataTransformation(unittest.TestCase):
     Test cases for the perform_data_transformation function.
     """
 
-    @patch("main.osv.update_idlist", return_value=["GHSA-1111-2222-3333"])
-    @patch("main.hf.merge_items_with_slash", return_value=["GHSA-1111-2222-3333"])
-    @patch("main.hf.extract_vulnerability_ids", return_value=["GHSA-1111-2222-3333"])
-    @patch("main.hf.prepend_line")
+    @patch("visar.main.osv.update_idlist", return_value=["GHSA-1111-2222-3333"])
+    @patch("visar.main.hf.merge_items_with_slash", return_value=["GHSA-1111-2222-3333"])
+    @patch("visar.main.hf.extract_vulnerability_ids", return_value=["GHSA-1111-2222-3333"])
+    @patch("visar.main.hf.prepend_line")
     def test_success_returns_vuln_ids(
         self, mock_prepend, mock_extract, mock_merge, mock_update
     ):
@@ -178,7 +185,7 @@ class TestPerformDataTransformation(unittest.TestCase):
             f.write("GHSA-1111-2222-3333")
             tmp_path = Path(f.name)
         try:
-            with patch("main.TEMP_FILE", tmp_path):
+            with patch("visar.main.TEMP_FILE", tmp_path):
                 result = perform_data_transformation(
                     "https://github.com/u/r", Path("/tmp/summary.txt")
                 )
@@ -186,9 +193,9 @@ class TestPerformDataTransformation(unittest.TestCase):
         finally:
             tmp_path.unlink(missing_ok=True)
 
-    @patch("main.hf.exit_with_error", side_effect=SystemExit(1))
-    @patch("main.cleanup_temp_files")
-    @patch("main.TEMP_FILE")
+    @patch("visar.main.hf.exit_with_error", side_effect=SystemExit(1))
+    @patch("visar.main.cleanup_temp_files")
+    @patch("visar.main.TEMP_FILE")
     def test_temp_file_missing_exits(self, mock_temp, mock_cleanup, mock_exit):
         """
         exit_with_error is called when TEMP_FILE does not exist.
@@ -199,12 +206,13 @@ class TestPerformDataTransformation(unittest.TestCase):
                 "https://github.com/u/r", Path("/tmp/summary.txt")
             )
         mock_exit.assert_called_once()
+        self.assertIsInstance(mock_exit.call_args[0][0], VisarDataError)
 
-    @patch("main.hf.exit_with_error", side_effect=SystemExit(1))
-    @patch("main.cleanup_temp_files")
-    @patch("main.hf.prepend_line", side_effect=FileNotFoundError)
-    @patch("main.hf.extract_vulnerability_ids", return_value=[])
-    @patch("main.hf.merge_items_with_slash", return_value=[])
+    @patch("visar.main.hf.exit_with_error", side_effect=SystemExit(1))
+    @patch("visar.main.cleanup_temp_files")
+    @patch("visar.main.hf.prepend_line", side_effect=FileNotFoundError)
+    @patch("visar.main.hf.extract_vulnerability_ids", return_value=[])
+    @patch("visar.main.hf.merge_items_with_slash", return_value=[])
     def test_file_not_found_exception_exits(
         self, mock_merge, mock_extract, mock_prepend, mock_cleanup, mock_exit
     ):
@@ -216,7 +224,7 @@ class TestPerformDataTransformation(unittest.TestCase):
         with _tempfile.NamedTemporaryFile(mode="w", suffix=".txt", delete=False) as f:
             tmp_path = Path(f.name)
         try:
-            with patch("main.TEMP_FILE", tmp_path):
+            with patch("visar.main.TEMP_FILE", tmp_path):
                 with self.assertRaises(SystemExit):
                     perform_data_transformation(
                         "https://github.com/u/r", Path("/tmp/summary.txt")
@@ -226,11 +234,11 @@ class TestPerformDataTransformation(unittest.TestCase):
         finally:
             tmp_path.unlink(missing_ok=True)
 
-    @patch("main.hf.exit_with_error", side_effect=SystemExit(1))
-    @patch("main.cleanup_temp_files")
-    @patch("main.hf.prepend_line", side_effect=Exception("unexpected"))
-    @patch("main.hf.extract_vulnerability_ids", return_value=[])
-    @patch("main.hf.merge_items_with_slash", return_value=[])
+    @patch("visar.main.hf.exit_with_error", side_effect=SystemExit(1))
+    @patch("visar.main.cleanup_temp_files")
+    @patch("visar.main.hf.prepend_line", side_effect=Exception("unexpected"))
+    @patch("visar.main.hf.extract_vulnerability_ids", return_value=[])
+    @patch("visar.main.hf.merge_items_with_slash", return_value=[])
     def test_unexpected_exception_exits(
         self, mock_merge, mock_extract, mock_prepend, mock_cleanup, mock_exit
     ):
@@ -242,7 +250,7 @@ class TestPerformDataTransformation(unittest.TestCase):
         with _tempfile.NamedTemporaryFile(mode="w", suffix=".txt", delete=False) as f:
             tmp_path = Path(f.name)
         try:
-            with patch("main.TEMP_FILE", tmp_path):
+            with patch("visar.main.TEMP_FILE", tmp_path):
                 with self.assertRaises(SystemExit):
                     perform_data_transformation(
                         "https://github.com/u/r", Path("/tmp/summary.txt")
@@ -258,18 +266,22 @@ class TestCallOsvApi(unittest.TestCase):
     Test cases for the call_osv_api function.
     """
 
-    @patch("main.hf.retry_call", return_value=(["detail"], ["HIGH"]))
+    @patch(
+        "visar.main.hf.retry_call",
+        return_value=[Finding("GHSA-1111-2222-3333", "HIGH", "detail")],
+    )
     def test_success_returns_tuple(self, mock_retry):
         """
-        Returns (details, severities) tuple on success.
+        Returns findings on success.
         """
-        details, severities = call_osv_api(["GHSA-1111-2222-3333"])
-        self.assertEqual(details, ["detail"])
-        self.assertEqual(severities, ["HIGH"])
+        findings = call_osv_api(["GHSA-1111-2222-3333"])
+        self.assertEqual(
+            findings, [Finding("GHSA-1111-2222-3333", "HIGH", "detail")]
+        )
 
-    @patch("main.hf.exit_with_error", side_effect=SystemExit(1))
-    @patch("main.cleanup_temp_files")
-    @patch("main.hf.retry_call", side_effect=Exception("OSV error"))
+    @patch("visar.main.hf.exit_with_error", side_effect=SystemExit(1))
+    @patch("visar.main.cleanup_temp_files")
+    @patch("visar.main.hf.retry_call", side_effect=Exception("OSV error"))
     def test_exception_exits(self, mock_retry, mock_cleanup, mock_exit):
         """
         cleanup and exit_with_error are called when retry_call raises.
@@ -278,6 +290,7 @@ class TestCallOsvApi(unittest.TestCase):
             call_osv_api(["GHSA-1111-2222-3333"])
         mock_cleanup.assert_called_once()
         mock_exit.assert_called_once()
+        self.assertIsInstance(mock_exit.call_args[0][0], VisarAPIError)
 
 
 class TestWriteOutput(unittest.TestCase):
@@ -285,30 +298,34 @@ class TestWriteOutput(unittest.TestCase):
     Test cases for the write_output function.
     """
 
-    @patch("main.hf.write_vulnerability_details_to_csv")
+    @patch("visar.main.hf.write_vulnerability_details_to_csv")
     def test_csv_format_calls_csv_writer(self, mock_writer):
         """
         The CSV writer is called with a path ending in _vulnids.csv.
         """
-        write_output("20260320-user-repo", ["ID"], ["det"], ["HIGH"], "csv")
+        findings = [Finding("ID", "HIGH", "det")]
+        write_output("20260320-user-repo", findings, "csv")
         mock_writer.assert_called_once()
-        output_path = mock_writer.call_args[0][3]
+        self.assertEqual(mock_writer.call_args[0][0], findings)
+        output_path = mock_writer.call_args[0][1]
         self.assertTrue(str(output_path).endswith("_vulnids.csv"))
 
-    @patch("main.hf.write_vulnerability_details_to_json")
+    @patch("visar.main.hf.write_vulnerability_details_to_json")
     def test_json_format_calls_json_writer(self, mock_writer):
         """
         The JSON writer is called with a path ending in _vulnids.json.
         """
-        write_output("20260320-user-repo", ["ID"], ["det"], ["HIGH"], "json")
+        findings = [Finding("ID", "HIGH", "det")]
+        write_output("20260320-user-repo", findings, "json")
         mock_writer.assert_called_once()
-        output_path = mock_writer.call_args[0][3]
+        self.assertEqual(mock_writer.call_args[0][0], findings)
+        output_path = mock_writer.call_args[0][1]
         self.assertTrue(str(output_path).endswith("_vulnids.json"))
 
-    @patch("main.hf.exit_with_error", side_effect=SystemExit(1))
-    @patch("main.cleanup_temp_files")
+    @patch("visar.main.hf.exit_with_error", side_effect=SystemExit(1))
+    @patch("visar.main.cleanup_temp_files")
     @patch(
-        "main.hf.write_vulnerability_details_to_csv",
+        "visar.main.hf.write_vulnerability_details_to_csv",
         side_effect=Exception("write error"),
     )
     def test_exception_triggers_cleanup_and_exit(
@@ -318,9 +335,12 @@ class TestWriteOutput(unittest.TestCase):
         cleanup_temp_files and exit_with_error are called when writer raises.
         """
         with self.assertRaises(SystemExit):
-            write_output("20260320-user-repo", ["ID"], ["det"], ["HIGH"], "csv")
+            write_output(
+                "20260320-user-repo", [Finding("ID", "HIGH", "det")], "csv"
+            )
         mock_cleanup.assert_called_once()
         mock_exit.assert_called_once()
+        self.assertIsInstance(mock_exit.call_args[0][0], VisarOutputError)
 
 
 class TestCleanupTempFiles(unittest.TestCase):
@@ -328,7 +348,7 @@ class TestCleanupTempFiles(unittest.TestCase):
     Test cases for the cleanup_temp_files function.
     """
 
-    @patch("main.TEMP_FILE")
+    @patch("visar.main.TEMP_FILE")
     def test_file_exists_is_unlinked(self, mock_temp):
         """
         unlink() is called when TEMP_FILE exists.
@@ -337,7 +357,7 @@ class TestCleanupTempFiles(unittest.TestCase):
         cleanup_temp_files()
         mock_temp.unlink.assert_called_once()
 
-    @patch("main.TEMP_FILE")
+    @patch("visar.main.TEMP_FILE")
     def test_file_not_exists_no_unlink(self, mock_temp):
         """
         unlink() is not called when TEMP_FILE does not exist.
@@ -346,7 +366,7 @@ class TestCleanupTempFiles(unittest.TestCase):
         cleanup_temp_files()
         mock_temp.unlink.assert_not_called()
 
-    @patch("main.TEMP_FILE")
+    @patch("visar.main.TEMP_FILE")
     def test_unlink_exception_logs_warning(self, mock_temp):
         """
         An exception during unlink is caught and does not crash the pipeline.
@@ -416,21 +436,20 @@ class TestScanSingleRepository(unittest.TestCase):
         """Helper: patch all pipeline sub-functions."""
         if vuln_ids is None:
             vuln_ids = ["GHSA-1111-2222-3333"]
+        findings = [Finding("GHSA-1111-2222-3333", "HIGH", "detail")]
         patches = {
-            "run_prerequisite_checks": patch("main.run_prerequisite_checks"),
+            "run_prerequisite_checks": patch("visar.main.run_prerequisite_checks"),
             "hf_format_filename": patch(
-                "main.hf.format_filename", return_value="20260320-u-repo"
+                "visar.main.hf.format_filename", return_value="20260320-u-repo"
             ),
-            "DATA_DIR": patch("main.DATA_DIR", new=Path("/tmp")),
-            "execute_docker_commands": patch("main.execute_docker_commands"),
+            "DATA_DIR": patch("visar.main.DATA_DIR", new=Path("/tmp")),
+            "execute_docker_commands": patch("visar.main.execute_docker_commands"),
             "perform_data_transformation": patch(
-                "main.perform_data_transformation", return_value=vuln_ids
+                "visar.main.perform_data_transformation", return_value=vuln_ids
             ),
-            "call_osv_api": patch(
-                "main.call_osv_api", return_value=(["detail"], ["HIGH"])
-            ),
-            "write_output": patch("main.write_output"),
-            "cleanup_temp_files": patch("main.cleanup_temp_files"),
+            "call_osv_api": patch("visar.main.call_osv_api", return_value=findings),
+            "write_output": patch("visar.main.write_output"),
+            "cleanup_temp_files": patch("visar.main.cleanup_temp_files"),
         }
         return patches
 
@@ -443,7 +462,7 @@ class TestScanSingleRepository(unittest.TestCase):
         try:
             scan_single_repository("https://github.com/u/r", "csv")
             mocks["write_output"].assert_called_once()
-            _, _, _, _, fmt = mocks["write_output"].call_args[0]
+            _, _, fmt = mocks["write_output"].call_args[0]
             self.assertEqual(fmt, "csv")
         finally:
             for p in patches.values():
@@ -457,7 +476,7 @@ class TestScanSingleRepository(unittest.TestCase):
         mocks = {k: p.start() for k, p in patches.items()}
         try:
             scan_single_repository("https://github.com/u/r", "json")
-            _, _, _, _, fmt = mocks["write_output"].call_args[0]
+            _, _, fmt = mocks["write_output"].call_args[0]
             self.assertEqual(fmt, "json")
         finally:
             for p in patches.values():
@@ -483,7 +502,7 @@ class TestScanSingleRepository(unittest.TestCase):
         """
         SystemExit from run_prerequisite_checks propagates to the caller.
         """
-        with patch("main.run_prerequisite_checks", side_effect=SystemExit(1)):
+        with patch("visar.main.run_prerequisite_checks", side_effect=SystemExit(1)):
             with self.assertRaises(SystemExit) as ctx:
                 scan_single_repository("https://github.com/u/r", "csv")
             self.assertEqual(ctx.exception.code, 1)
@@ -494,7 +513,7 @@ class TestMain(unittest.TestCase):
     Test cases for the main() function.
     """
 
-    @patch("main.scan_single_repository")
+    @patch("visar.main.scan_single_repository")
     @patch("sys.argv", ["main.py", "https://github.com/u/r"])
     def test_single_mode_repo_url(self, mock_scan):
         """
@@ -505,7 +524,7 @@ class TestMain(unittest.TestCase):
         mock_scan.assert_called_once_with("https://github.com/u/r", "csv")
         self.assertEqual(ctx.exception.code, 0)
 
-    @patch("main.scan_single_repository")
+    @patch("visar.main.scan_single_repository")
     @patch("sys.argv", ["main.py", "https://github.com/u/r", "--output-format", "json"])
     def test_single_mode_with_json_format(self, mock_scan):
         """
@@ -515,10 +534,10 @@ class TestMain(unittest.TestCase):
             main.main()
         mock_scan.assert_called_once_with("https://github.com/u/r", "json")
 
-    @patch("main.print_batch_summary")
-    @patch("main.scan_single_repository")
+    @patch("visar.main.print_batch_summary")
+    @patch("visar.main.scan_single_repository")
     @patch(
-        "main.hf.read_batch_file",
+        "visar.main.hf.read_batch_file",
         return_value=["https://github.com/u/r1", "https://github.com/u/r2"],
     )
     @patch("sys.argv", ["main.py", "--batch", "repos.txt"])
@@ -536,10 +555,10 @@ class TestMain(unittest.TestCase):
         self.assertEqual(len(succeeded), 2)
         self.assertEqual(len(failed), 0)
 
-    @patch("main.print_batch_summary")
-    @patch("main.scan_single_repository", side_effect=[None, SystemExit(1)])
+    @patch("visar.main.print_batch_summary")
+    @patch("visar.main.scan_single_repository", side_effect=[None, SystemExit(1)])
     @patch(
-        "main.hf.read_batch_file",
+        "visar.main.hf.read_batch_file",
         return_value=["https://github.com/u/r1", "https://github.com/u/r2"],
     )
     @patch("sys.argv", ["main.py", "--batch", "repos.txt"])
@@ -554,9 +573,9 @@ class TestMain(unittest.TestCase):
         self.assertEqual(len(succeeded), 1)
         self.assertEqual(len(failed), 1)
 
-    @patch("main.print_batch_summary")
-    @patch("main.scan_single_repository", side_effect=SystemExit(0))
-    @patch("main.hf.read_batch_file", return_value=["https://github.com/u/r1"])
+    @patch("visar.main.print_batch_summary")
+    @patch("visar.main.scan_single_repository", side_effect=SystemExit(0))
+    @patch("visar.main.hf.read_batch_file", return_value=["https://github.com/u/r1"])
     @patch("sys.argv", ["main.py", "--batch", "repos.txt"])
     def test_batch_mode_exit_zero_counts_as_success(
         self, mock_read, mock_scan, mock_summary
@@ -572,8 +591,8 @@ class TestMain(unittest.TestCase):
         self.assertEqual(len(succeeded), 1)
         self.assertEqual(len(failed), 0)
 
-    @patch("main.hf.exit_with_error", side_effect=SystemExit(1))
-    @patch("main.hf.read_batch_file", return_value=[])
+    @patch("visar.main.hf.exit_with_error", side_effect=SystemExit(1))
+    @patch("visar.main.hf.read_batch_file", return_value=[])
     @patch("sys.argv", ["main.py", "--batch", "repos.txt"])
     def test_batch_mode_empty_file(self, mock_read, mock_exit):
         """
@@ -583,8 +602,8 @@ class TestMain(unittest.TestCase):
             main.main()
         mock_exit.assert_called_once()
 
-    @patch("main.hf.exit_with_error", side_effect=SystemExit(1))
-    @patch("main.hf.read_batch_file", side_effect=FileNotFoundError)
+    @patch("visar.main.hf.exit_with_error", side_effect=SystemExit(1))
+    @patch("visar.main.hf.read_batch_file", side_effect=FileNotFoundError)
     @patch("sys.argv", ["main.py", "--batch", "missing.txt"])
     def test_batch_mode_file_not_found(self, mock_read, mock_exit):
         """
@@ -612,7 +631,7 @@ class TestMain(unittest.TestCase):
             main.main()
         self.assertEqual(ctx.exception.code, 2)
 
-    @patch("main.scan_single_repository")
+    @patch("visar.main.scan_single_repository")
     @patch("sys.argv", ["main.py", "https://github.com/u/r"])
     def test_default_output_format_is_csv(self, mock_scan):
         """

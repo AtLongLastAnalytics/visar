@@ -21,14 +21,11 @@ import tempfile
 import csv
 import json
 import logging
-import sys
 
 logging.disable(logging.CRITICAL)
 
-# add the src/ directory to sys.path to import the module
-sys.path.insert(0, "./src")
-
-from helpers.dashboard_funcs import (
+from visar.models import Finding
+from visar.helpers.dashboard_funcs import (
     write_multi_dashboard,
     generate_dashboard_from_file,
     generate_dashboard_from_dir,
@@ -43,14 +40,15 @@ from helpers.dashboard_funcs import (
 # ---------------------------------------------------------------------------
 
 
-def _make_dataset(label, vuln_ids, details, severities):
+def _make_dataset(label, findings):
     """Build a minimal dataset dict for use in write_multi_dashboard tests."""
     sev_order = {"CRITICAL": 0, "HIGH": 1, "MODERATE": 2, "LOW": 3}
     sorted_rows = sorted(
-        zip(vuln_ids, severities, details), key=lambda x: sev_order.get(x[1], 99)
+        findings, key=lambda finding: sev_order.get(finding.severity.upper(), 99)
     )
     counts = {"CRITICAL": 0, "HIGH": 0, "MODERATE": 0, "LOW": 0, "OTHER": 0}
-    for _, sev, _ in sorted_rows:
+    for finding in sorted_rows:
+        sev = finding.severity.upper()
         if sev in ("CRITICAL", "HIGH", "MODERATE", "LOW"):
             counts[sev] += 1
         else:
@@ -62,7 +60,14 @@ def _make_dataset(label, vuln_ids, details, severities):
         "isoDate": "2026-03-20",
         "total": sum(counts.values()),
         "counts": counts,
-        "rows": [{"id": v, "severity": s, "detail": d} for v, s, d in sorted_rows],
+        "rows": [
+            {
+                "id": finding.vulnerability_id,
+                "severity": finding.severity,
+                "detail": finding.details,
+            }
+            for finding in sorted_rows
+        ],
     }
 
 
@@ -94,7 +99,8 @@ class TestWriteMultiDashboard(unittest.TestCase):
         All dataset data is embedded in the HTML as a DATASETS JS variable.
         """
         ds = _make_dataset(
-            "test (20 Mar 2026)", ["GHSA-1111-2222-3333"], ["Details."], ["HIGH"]
+            "test (20 Mar 2026)",
+            [Finding("GHSA-1111-2222-3333", "HIGH", "Details.")],
         )
         content = self._write_and_read([ds])
         self.assertIn("var DATASETS =", content)
@@ -105,7 +111,8 @@ class TestWriteMultiDashboard(unittest.TestCase):
         Rows in the embedded JSON appear in CRITICAL-first severity order.
         """
         ds = _make_dataset(
-            "test", ["HIGH-1", "CRITICAL-1"], ["d", "d"], ["HIGH", "CRITICAL"]
+            "test",
+            [Finding("HIGH-1", "HIGH", "d"), Finding("CRITICAL-1", "CRITICAL", "d")],
         )
         content = self._write_and_read([ds])
         self.assertLess(content.index("CRITICAL-1"), content.index("HIGH-1"))
@@ -123,10 +130,10 @@ class TestWriteMultiDashboard(unittest.TestCase):
         All datasets passed in are present in the embedded JSON.
         """
         ds1 = _make_dataset(
-            "repo-one (20 Mar 2026)", ["GHSA-1111-2222-3333"], ["d"], ["HIGH"]
+            "repo-one (20 Mar 2026)", [Finding("GHSA-1111-2222-3333", "HIGH", "d")]
         )
         ds2 = _make_dataset(
-            "repo-two (20 Mar 2026)", ["GHSA-4444-5555-6666"], ["d"], ["LOW"]
+            "repo-two (20 Mar 2026)", [Finding("GHSA-4444-5555-6666", "LOW", "d")]
         )
         content = self._write_and_read([ds1, ds2])
         self.assertIn("GHSA-1111-2222-3333", content)
@@ -139,9 +146,13 @@ class TestWriteMultiDashboard(unittest.TestCase):
         """
         ds = _make_dataset(
             "test",
-            ["GHSA-1111-2222-3333"],
-            ['</script><script>alert("xss")</script>'],
-            ["HIGH"],
+            [
+                Finding(
+                    "GHSA-1111-2222-3333",
+                    "HIGH",
+                    '</script><script>alert("xss")</script>',
+                )
+            ],
         )
         content = self._write_and_read([ds])
         # the dangerous closing tag must not appear unescaped in the output
@@ -149,19 +160,59 @@ class TestWriteMultiDashboard(unittest.TestCase):
         # it must be present in its escaped form
         self.assertIn("<\\/script>", content)
 
-    def test_dropdown_select_element_present(self):
+    def test_repo_select_element_present(self):
         """
-        Output contains the dataset dropdown select element.
+        Output contains the repo dropdown select element.
         """
         content = self._write_and_read([])
-        self.assertIn('id="dataset-select"', content)
+        self.assertIn('id="repo-select"', content)
 
-    def test_date_filter_select_present(self):
+    def test_date_select_present(self):
         """
-        Output contains the date filter select element.
+        Output contains the per-repo scan-date select element.
         """
         content = self._write_and_read([])
-        self.assertIn('id="date-filter"', content)
+        self.assertIn('id="date-select"', content)
+
+    def test_dashboard_has_no_external_font_dependencies(self):
+        """
+        Output is self-contained and does not pull fonts from Google CDN.
+        """
+        content = self._write_and_read([])
+        self.assertNotIn("fonts.googleapis.com", content)
+        self.assertNotIn("fonts.gstatic.com", content)
+        self.assertNotIn('rel="preconnect"', content)
+
+    def test_dashboard_csp_is_hash_pinned(self):
+        """
+        Output CSP hash-pins every inline script and style and disallows
+        'unsafe-inline'. This is the meaningful hardening for a security
+        tool aimed at regulated adopters.
+        """
+        import re
+
+        content = self._write_and_read([])
+        csp_match = re.search(
+            r'<meta http-equiv="Content-Security-Policy" content="([^"]+)">',
+            content,
+        )
+        self.assertIsNotNone(csp_match, "CSP meta tag missing")
+        csp = csp_match.group(1)
+
+        self.assertIn("default-src 'none'", csp)
+        self.assertIn("img-src 'self' data:", csp)
+        self.assertIn("font-src data:", csp)
+        # No relaxations — hash-pinning replaces them entirely
+        self.assertNotIn("'unsafe-inline'", csp)
+        self.assertNotIn("'unsafe-eval'", csp)
+        # Both inline scripts (data + main JS) and the inline style block
+        # contribute hashes. Expect at least 2 script hashes and 1 style hash.
+        script_hashes = re.findall(r"script-src[^;]*?('sha256-[A-Za-z0-9+/=]+')", csp)
+        style_hashes = re.findall(r"style-src[^;]*?('sha256-[A-Za-z0-9+/=]+')", csp)
+        self.assertGreaterEqual(len(re.findall(r"'sha256-[A-Za-z0-9+/=]+'",
+                                               csp.split(";")[1])), 2)
+        self.assertGreaterEqual(len(re.findall(r"'sha256-[A-Za-z0-9+/=]+'",
+                                               csp.split(";")[2])), 1)
 
 
 class TestReadCsvData(unittest.TestCase):
@@ -171,7 +222,7 @@ class TestReadCsvData(unittest.TestCase):
 
     def test_reads_all_columns(self):
         """
-        Returns the correct vuln_ids, details, and severities from a CSV file.
+        Returns the correct findings from a CSV file.
         """
         rows = [
             ["GHSA-1111-2222-3333", "HIGH", "A high severity issue."],
@@ -185,18 +236,19 @@ class TestReadCsvData(unittest.TestCase):
             writer.writerows(rows)
             tmp_path = Path(f.name)
         try:
-            vuln_ids, details, severities = _read_csv_data(tmp_path)
-            self.assertEqual(vuln_ids, ["GHSA-1111-2222-3333", "GHSA-4444-5555-6666"])
-            self.assertEqual(severities, ["HIGH", "LOW"])
             self.assertEqual(
-                details, ["A high severity issue.", "A low severity issue."]
+                _read_csv_data(tmp_path),
+                [
+                    Finding("GHSA-1111-2222-3333", "HIGH", "A high severity issue."),
+                    Finding("GHSA-4444-5555-6666", "LOW", "A low severity issue."),
+                ],
             )
         finally:
             tmp_path.unlink(missing_ok=True)
 
     def test_empty_csv_returns_empty_lists(self):
         """
-        A CSV with only a header row returns three empty lists.
+        A CSV with only a header row returns an empty findings list.
         """
         with tempfile.NamedTemporaryFile(
             mode="w", suffix=".csv", delete=False, encoding="utf-8", newline=""
@@ -204,10 +256,7 @@ class TestReadCsvData(unittest.TestCase):
             csv.writer(f).writerow(["VulnerabilityID", "Severity", "Details"])
             tmp_path = Path(f.name)
         try:
-            vuln_ids, details, severities = _read_csv_data(tmp_path)
-            self.assertEqual(vuln_ids, [])
-            self.assertEqual(details, [])
-            self.assertEqual(severities, [])
+            self.assertEqual(_read_csv_data(tmp_path), [])
         finally:
             tmp_path.unlink(missing_ok=True)
 
@@ -219,7 +268,7 @@ class TestReadJsonData(unittest.TestCase):
 
     def test_reads_all_fields(self):
         """
-        Returns the correct vuln_ids, details, and severities from a JSON file.
+        Returns the correct findings from a JSON file.
         """
         records = [
             {
@@ -234,16 +283,16 @@ class TestReadJsonData(unittest.TestCase):
             json.dump(records, f)
             tmp_path = Path(f.name)
         try:
-            vuln_ids, details, severities = _read_json_data(tmp_path)
-            self.assertEqual(vuln_ids, ["GHSA-1111-2222-3333"])
-            self.assertEqual(severities, ["CRITICAL"])
-            self.assertEqual(details, ["Critical issue."])
+            self.assertEqual(
+                _read_json_data(tmp_path),
+                [Finding("GHSA-1111-2222-3333", "CRITICAL", "Critical issue.")],
+            )
         finally:
             tmp_path.unlink(missing_ok=True)
 
     def test_empty_json_array_returns_empty_lists(self):
         """
-        An empty JSON array returns three empty lists.
+        An empty JSON array returns an empty findings list.
         """
         with tempfile.NamedTemporaryFile(
             mode="w", suffix=".json", delete=False, encoding="utf-8"
@@ -251,10 +300,7 @@ class TestReadJsonData(unittest.TestCase):
             json.dump([], f)
             tmp_path = Path(f.name)
         try:
-            vuln_ids, details, severities = _read_json_data(tmp_path)
-            self.assertEqual(vuln_ids, [])
-            self.assertEqual(details, [])
-            self.assertEqual(severities, [])
+            self.assertEqual(_read_json_data(tmp_path), [])
         finally:
             tmp_path.unlink(missing_ok=True)
 
@@ -357,13 +403,13 @@ class TestGenerateDashboardFromDir(unittest.TestCase):
 
     def test_generates_dashboard_html_in_dir(self):
         """
-        Writes dashboard.html inside the data directory.
+        Writes visar_dashboard.html inside the data directory.
         """
         with tempfile.TemporaryDirectory() as tmp_dir:
             data_dir = Path(tmp_dir)
             self._write_csv(data_dir / "20260320-test-repo_vulnids.csv")
             result = generate_dashboard_from_dir(data_dir)
-            self.assertEqual(result.name, "dashboard.html")
+            self.assertEqual(result.name, "visar_dashboard.html")
             self.assertTrue(result.exists())
 
     def test_loads_multiple_files(self):
@@ -451,9 +497,10 @@ class TestPrepareDataset(unittest.TestCase):
             p = self._make_file(tmp_dir, "20260320-test-repo_vulnids")
             ds = _prepare_dataset(
                 p,
-                ["GHSA-1111-2222-3333", "GHSA-4444-5555-6666"],
-                ["d1", "d2"],
-                ["HIGH", "NONE"],
+                [
+                    Finding("GHSA-1111-2222-3333", "HIGH", "d1"),
+                    Finding("GHSA-4444-5555-6666", "NONE", "d2"),
+                ],
             )
             self.assertEqual(ds["counts"]["HIGH"], 1)
             self.assertEqual(ds["counts"]["OTHER"], 1)
@@ -467,9 +514,11 @@ class TestPrepareDataset(unittest.TestCase):
             p = self._make_file(tmp_dir, "20260320-test-repo_vulnids")
             ds = _prepare_dataset(
                 p,
-                ["GHSA-1", "GHSA-2", "GHSA-3"],
-                ["d", "d", "d"],
-                ["CRITICAL", "HIGH", "LOW"],
+                [
+                    Finding("GHSA-1", "CRITICAL", "d"),
+                    Finding("GHSA-2", "HIGH", "d"),
+                    Finding("GHSA-3", "LOW", "d"),
+                ],
             )
             self.assertEqual(ds["total"], sum(ds["counts"].values()))
 
@@ -479,7 +528,7 @@ class TestPrepareDataset(unittest.TestCase):
         """
         with tempfile.TemporaryDirectory() as tmp_dir:
             p = self._make_file(tmp_dir, "20260320-test-repo_vulnids")
-            ds = _prepare_dataset(p, [], [], [])
+            ds = _prepare_dataset(p, [])
             self.assertEqual(ds["isoDate"], "2026-03-20")
 
     def test_iso_date_matches_date_field(self):
@@ -489,7 +538,7 @@ class TestPrepareDataset(unittest.TestCase):
         """
         with tempfile.TemporaryDirectory() as tmp_dir:
             p = self._make_file(tmp_dir, "20260101-owner-repo_vulnids")
-            ds = _prepare_dataset(p, [], [], [])
+            ds = _prepare_dataset(p, [])
             self.assertEqual(ds["isoDate"], "2026-01-01")
             self.assertEqual(ds["date"], "01 Jan 2026")
 

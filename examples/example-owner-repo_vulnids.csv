@@ -1,0 +1,7 @@
+VulnerabilityID,Severity,Details
+GHSA-0000-1111-aaaa,CRITICAL,"Remote code execution via deserialization of untrusted data. An attacker who controls input to the load() function can execute arbitrary Python code on the host system."
+GHSA-0000-2222-bbbb,HIGH,"SQL injection in the query builder allows extraction of sensitive database records via crafted filter parameters passed to the search endpoint."
+PYSEC-2024-001 / GHSA-0000-3333-cccc,HIGH,"Authentication bypass in the session management module allows an attacker to access protected endpoints without valid credentials by manipulating the session token."
+GHSA-0000-4444-dddd,MODERATE,"Cross-site scripting (XSS) in the template renderer allows injection of arbitrary JavaScript when rendering untrusted user-supplied content."
+GHSA-0000-5555-eeee,LOW,"Denial of service via malformed input causes the parser to enter an infinite loop, consuming 100% CPU until the process is manually terminated."
+GHSA-0000-6666-ffff,NOT AVAILABLE,"Dependency flagged by the scanner but severity data is not yet available in the OSV database. Monitor the OSV entry for updates."

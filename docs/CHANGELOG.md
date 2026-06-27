@@ -2,6 +2,17 @@
 
 All notable changes to VISaR are documented here.
 
+## [Unreleased]
+
+### Changed
+- **Renamed dashboard output file** — the generated HTML report is now written as `visar_dashboard.html` (previously `dashboard.html`). The command is unchanged: `python -m visar.dashboard`.
+
+## [1.2.0] - 2026-05-29
+
+### Added
+- **Selectable diff baseline** — the dashboard comparison bar now has a *Compare* dropdown to diff the selected scan against either the *previous scan* (as before) or the *first scan*, giving a cumulative view of everything new or resolved since the repository's baseline scan.
+- **Scan history** — a new section beneath the vulnerability table shows, for the selected repository, a per-scan table (date, total findings, new, resolved, reclassified) alongside an inline SVG trend chart of total findings over time. Fully self-contained and CSP-safe (no external charting libraries).
+
 ## [1.1.0] - 2026-03-25
 
 ### Added

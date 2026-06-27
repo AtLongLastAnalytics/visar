@@ -1,0 +1,392 @@
+"""
+Copyright (c) AtLongLast Analytics LLC
+
+Licensed under the Apache License, Version 2.0
+
+Project: https://github.com/AtLongLastAnalytics/visar
+Author: Robert Long
+Date: 2026-03
+Version: 1.1.0
+
+File: helper_funcs.py
+Description: This module includes general purpose functions for data
+transformation and file management.
+"""
+
+# import standard libraries
+import csv
+from datetime import datetime
+import json
+from pathlib import Path
+import re
+import requests
+import sys
+import time
+from typing import Callable, List, Any, Union
+from urllib.parse import urlparse
+
+# import helper functions and configuration
+from ..config import DATA_DIR, GITHUB_CONFIG
+from ..exceptions import (
+    VisarAPIError,
+    VisarDataError,
+    VisarDockerError,
+    VisarError,
+    VisarOutputError,
+    VisarPrerequisiteError,
+)
+from ..models import Finding
+from .logger_config import setup_logger
+
+# initialize logger
+logger = setup_logger(__name__)
+
+# severity sort order shared by all output writers
+_SEVERITY_ORDER: dict = {"CRITICAL": 0, "HIGH": 1, "MODERATE": 2, "LOW": 3}
+_FILENAME_SEGMENT_PATTERN = re.compile(r"^[A-Za-z0-9._-]+$")
+_VISAR_EXIT_CODES = (
+    (VisarOutputError, 6),
+    (VisarAPIError, 5),
+    (VisarDataError, 4),
+    (VisarDockerError, 3),
+    (VisarPrerequisiteError, 2),
+    (VisarError, 1),
+)
+
+
+def check_datafolder_exists():
+    """
+    Ensure the "data" folder exists in the root directory.
+
+    This function checks if a folder named "data" exists in the root directory.
+    If the folder doesn't exist, it creates the folder.
+
+    Returns:
+        None
+    """
+    if not DATA_DIR.exists():
+        DATA_DIR.mkdir(parents=True, exist_ok=True)
+
+
+def _resolve_exit_code(error: str | Exception, code: int | None) -> int:
+    """Resolve the process exit code for a VISaR error."""
+    if code is not None:
+        return code
+
+    for exception_type, exit_code in _VISAR_EXIT_CODES:
+        if isinstance(error, exception_type):
+            return exit_code
+    return 1
+
+
+def exit_with_error(error: str | Exception, code: int | None = None) -> None:
+    """
+    Log an error message and exit the program with a specific non-zero code.
+
+    This function logs the specified error message and then terminates the
+    Python process with the provided exit code. When passed a VISaR exception,
+    it maps that exception type to a stable process exit code.
+
+    Args:
+        error (str | Exception): The error message or exception to log.
+        code (int | None, optional): Explicit exit code override.
+    """
+    logger.error(str(error))
+    sys.exit(_resolve_exit_code(error, code))
+
+
+def extract_vulnerability_ids(input_string: str) -> List[str]:
+    """
+    Extract vulnerability IDs from a given input string.
+
+    This function uses a regular expression pattern to identify and extract all
+    vulnerability IDs from the provided input string. The expected ID formats
+    include "PYSEC-XXXX-XX" and "GHSA-XXXX-XXXX-XXXX". If matches are found, a
+    list of vulnerability IDs is returned; else, an empty list is returned.
+
+    Args:
+        input_string (str): Input string that may contain vulnerability IDs.
+
+    Returns:
+        List[str]: List of matched vulnerability IDs or an empty list
+    """
+    # define regex pattern of the two common vulnerability codes used by OSV
+    vuln_id_pattern = r"(PYSEC-\w{4}-\w{2,5}(?: /)?|GHSA-\w{4}-\w{4}-\w{4})"
+
+    # non-overlapping matches
+    matches = re.findall(vuln_id_pattern, input_string)
+
+    if matches:
+        return list(matches)
+    else:
+        return []
+
+
+def format_filename(repo_url: str) -> str:
+    """
+    Format a filename derived from a repository URL.
+
+    This function parses the provided GitHub repository URL to generate a
+    filename. Path segments are normalized into a hyphen-delimited basename,
+    and each segment must contain only safe filename characters.
+
+    Args:
+        repo_url (str): The GitHub repository URL.
+
+    Returns:
+        str: The formatted filename.
+
+    Raises:
+        ValueError: If the repository path is empty or contains unsafe path
+            segments.
+    """
+    parsed = urlparse(repo_url)
+    path_segments = [segment for segment in parsed.path.split("/") if segment]
+    if not path_segments:
+        raise ValueError("Repository URL must include at least one path segment")
+
+    for segment in path_segments:
+        if segment in {".", ".."} or not _FILENAME_SEGMENT_PATTERN.fullmatch(segment):
+            raise ValueError(f"Unsafe repository path segment: {segment}")
+
+    formatted_path = "-".join(path_segments)
+    today_date = datetime.today().strftime("%Y%m%d")
+    return f"{today_date}-{formatted_path}"
+
+
+def merge_items_with_slash(input_list: List[str]) -> List[str]:
+    """
+    Merge consecutive items in a list when they are separated by a slash.
+
+    This function iterates through the input list and checks if an item ends
+    with " /". When this is true, the function merges the two consecutive
+    items into one string separated by a space. Else, adds current item as is.
+
+    Args:
+        input_list (List[str]): The list of string items to merge.
+
+    Returns:
+        List[str]: A new list with merged results where applicable.
+    """
+    result = []
+    i = 0
+    while i < len(input_list):
+        if input_list[i].endswith(" /") and i + 1 < len(input_list):
+            result.append(f"{input_list[i]} {input_list[i + 1]}")
+            i += 2
+        else:
+            result.append(input_list[i])
+            i += 1
+    return result
+
+
+def prepend_line(file_path: Path, line: str) -> None:
+    """
+    Prepend a given line to the beginning of a file.
+
+    This function reads the current content of the file specified by file_path,
+    then writes a new file with the given line prepended to the original file.
+
+    Args:
+        file_path (Path): The path to the file.
+        line (str): The line to prepend.
+    """
+    with file_path.open("r") as f:
+        content = f.read()
+    with file_path.open("w") as f:
+        f.write(line + "\n" + content)
+
+
+def retry_call(
+    func: Callable,
+    *args: Any,
+    retries: int = 3,
+    delay: Union[int, float] = 2,
+    **kwargs: Any,
+) -> Any:
+    """
+    Call a function and retry if an exception is encountered.
+
+    This function attempts to call given function with the supplied arguments.
+    If the function call raises an exception, it logs a warning and retries
+    after a specified delay. The process is repeated up to the given number of
+    retries. If all retries fail, the last exception is raised.
+
+    Args:
+        func (Callable): The function to be called.
+        *args: Positional arguments to pass to the function.
+        retries (int, optional): The number of retry attempts. Defaults to 3.
+        delay (int or float, optional): The delay in seconds between retry
+            attempts. Defaults to 2.
+        **kwargs: Keyword arguments to pass to the function.
+
+    Returns:
+        Any: The result of the function call if it is successful.
+
+    Raises:
+        Exception: The last encountered exception if all retries fail.
+    """
+    for attempt in range(retries):
+        try:
+            result = func(*args, **kwargs)
+            return result
+        except Exception as e:
+            logger.warning(
+                "Attempt %s for %s failed: %s", attempt + 1, func.__name__, e
+            )
+            if attempt < retries - 1:
+                time.sleep(delay)
+            else:
+                raise
+
+
+def validate_github_url(url: str) -> bool:
+    """
+    Validate if the URL provided is a valid GitHub repository URL.
+
+    This function checks if the URL matches the expected pattern of
+    GitHub repository URLs (e.g., "https://github.com/username/repository").
+
+    Args:
+        url (str): The URL string to validate.
+
+    Returns:
+        bool: True if the URL is valid, False otherwise.
+    """
+    pattern = r"^https://github\.com/[\w-]+/[\w.\-]+(?:/)?$"
+    if re.match(pattern, url):
+        return True
+    else:
+        logger.error("Invalid GitHub URL: %s", url)
+        return False
+
+
+def verify_github_token(token: str) -> bool:
+    """
+    Verify that the GitHub token has the required permissions.
+
+    This function sends a request to the GitHub API's endpoint with the
+    provided token and examines the returned header value to ensure that the
+    token includes the 'public_repo' scope.
+
+    Args:
+        token (str): The GitHub token to verify.
+
+    Returns:
+        bool: True if the token is valid and has the required permissions,
+            False otherwise.
+    """
+    headers = {
+        "Authorization": f"token {token}",
+        "Accept": "application/vnd.github.v3+json",
+    }
+
+    try:
+        response = requests.get(
+            f"{GITHUB_CONFIG['BASE_URL']}/user", headers=headers, timeout=30
+        )
+
+        if response.status_code == 200:
+            scopes = response.headers.get("X-OAuth-Scopes", "")
+            if "public_repo" in scopes:
+                return True
+            else:
+                logger.error("GitHub token missing 'public_repo' scope")
+                return False
+
+        elif response.status_code == 401:
+            logger.error("GitHub API error: %s", response.status_code)
+            return False
+        else:
+            logger.error("GitHub API unexpected status: %s", response.status_code)
+            return False
+
+    except requests.exceptions.RequestException as e:
+        logger.error("GitHub API request failed: %s", e)
+        return False
+
+
+def _sorted_findings(findings: List[Finding]) -> List[Finding]:
+    """Return findings sorted by severity order for consistent output."""
+    return sorted(
+        findings, key=lambda finding: _SEVERITY_ORDER.get(finding.severity.upper(), 99)
+    )
+
+
+def write_vulnerability_details_to_csv(findings: List[Finding], output_file: Path) -> None:
+    """
+    Write vulnerability details to a CSV file.
+
+    This function writes rows of vulnerability information into a CSV file.
+    Each row contains a vulnerability ID, severity, and associated details. The
+    CSV file is written to the specified output_file path using UTF-8 encoding.
+
+    Args:
+        findings (List[Finding]): A list of vulnerability findings.
+        output_file (Path): The file path where the CSV will be written.
+    """
+    rows = _sorted_findings(findings)
+    with open(output_file, "w", newline="", encoding="utf-8") as f:
+        writer = csv.writer(f)
+        writer.writerow(["VulnerabilityID", "Severity", "Details"])
+        for finding in rows:
+            writer.writerow(
+                [finding.vulnerability_id, finding.severity, finding.details]
+            )
+
+
+def read_batch_file(file_path: str) -> List[str]:
+    """
+    Read a batch file and return a list of valid GitHub repository URLs.
+
+    This function reads the file at file_path line by line. Lines that are
+    blank or begin with '#' are silently skipped. Lines that are not valid
+    GitHub URLs (as determined by validate_github_url) are skipped; the
+    validate_github_url function logs the invalid URL at ERROR level.
+    The returned list contains only validated URLs in the order they appear.
+
+    Args:
+        file_path (str): Path to the batch file containing one URL per line.
+
+    Returns:
+        List[str]: A list of validated GitHub repository URLs.
+
+    Raises:
+        FileNotFoundError: If the specified file does not exist.
+        OSError: If the file cannot be read.
+    """
+    path = Path(file_path)
+    if not path.exists():
+        raise FileNotFoundError(f"Batch file not found: {file_path}")
+
+    urls = []
+    with path.open("r", encoding="utf-8") as f:
+        for line in f:
+            line = line.strip()
+            if not line or line.startswith("#"):
+                continue
+            if validate_github_url(line):
+                urls.append(line)
+    return urls
+
+
+def write_vulnerability_details_to_json(findings: List[Finding], output_file: Path) -> None:
+    """
+    Write vulnerability details to a JSON file.
+
+    This function writes vulnerability information as a JSON array to the
+    specified output file. Each element is an object with keys
+    'VulnerabilityID', 'Severity', and 'Details'. Rows are sorted by severity
+    order: CRITICAL, HIGH, MODERATE, LOW. Unknown severities sort last.
+    The file is written with UTF-8 encoding and 2-space indentation.
+
+    Args:
+        findings (List[Finding]): A list of vulnerability findings.
+        output_file (Path): The file path where the JSON will be written.
+
+    Returns:
+        None
+    """
+    records = [finding.to_output_record() for finding in _sorted_findings(findings)]
+    with open(output_file, "w", encoding="utf-8") as f:
+        json.dump(records, f, indent=2)

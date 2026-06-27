@@ -6,7 +6,7 @@ Licensed under the Apache License, Version 2.0
 Project: https://github.com/AtLongLastAnalytics/visar
 Author: Robert Long
 Date: 2026-03
-Version: 1.1.0
+Version: 1.2.0
 
 File: main.py
 Description: This script is the entry point to the
@@ -228,7 +228,7 @@ def write_output(
     Write vulnerability output data in the specified format.
 
     This function dispatches to the appropriate writer based on output_format.
-    Supported formats are 'csv', 'json', and 'md'. The output file is placed
+    Supported formats are 'csv' and 'json'. The output file is placed
     in DATA_DIR with an extension matching the format. On any failure,
     cleanup_temp_files is called and the process is terminated using
     hf.exit_with_error.
@@ -236,7 +236,7 @@ def write_output(
     Args:
         data_filename (str): The base filename derived from the repository URL.
         findings (List[Finding]): The vulnerability findings to persist.
-        output_format (str): One of 'csv', 'json', or 'md'.
+        output_format (str): One of 'csv' or 'json'.
 
     Returns:
         None

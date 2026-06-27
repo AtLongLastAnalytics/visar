@@ -43,11 +43,10 @@ uv sync
 cp .env.example .env   # then paste your token into .env
 
 # 3. Scan a repo (writes CSV to data/)
-cd src
-uv run python -m visar.main https://github.com/owner/repo
+uv run visar https://github.com/owner/repo
 
 # 4. Build the interactive HTML dashboard from your scans
-uv run python -m visar.dashboard   # writes data/visar_dashboard.html
+uv run visar-dashboard   # writes data/visar_dashboard.html
 ```
 
 > Full prerequisites, options, and batch scanning in [Section 1](#1-using-visar).
@@ -128,41 +127,42 @@ curl -LsSf https://astral.sh/uv/install.sh | sh
 
    All tests should pass. If any fail, check the error message and ensure Docker Desktop is running and the OSSF Scorecard image has been pulled.
 
-5. Move into the `src/` folder and run the application. VISaR is organised as the `visar` package, and its modules use relative imports, so they are launched with Python's `-m` module flag from `src/` (e.g. `python -m visar.main`) — a simpler root-level entry point is tracked in the [roadmap](docs/ROADMAP.md):
+5. Run the application from the **project root**. `uv sync` installs VISaR's two console commands, `visar` (scan) and `visar-dashboard` (HTML report), so there is no need to change directories or use Python's `-m` module flag:
 
    **Single repository scan (default CSV output):**
     ```
-    cd src/
-    uv run python -m visar.main <full-github-repo-url>
+    uv run visar <full-github-repo-url>
     ```
 
    **Single repository scan with JSON output:**
     ```
-    uv run python -m visar.main <full-github-repo-url> --output-format json
+    uv run visar <full-github-repo-url> --output-format json
     ```
 
    **Batch scan — scan multiple repositories from a text file:**
     ```
-    uv run python -m visar.main --batch ../repos.txt
-    uv run python -m visar.main --batch ../repos.txt --output-format json
+    uv run visar --batch repos.txt
+    uv run visar --batch repos.txt --output-format json
     ```
 
    The batch file should contain one GitHub repository URL per line. Lines starting with `#` and blank lines are ignored. A `repos.txt.example` file is provided as a template — copy it to `repos.txt` and replace the contents with your own repos (`repos.txt` is gitignored).
 
    **Generate an HTML dashboard from all scan outputs in a directory:**
     ```
-    uv run python -m visar.dashboard
+    uv run visar-dashboard
     ```
 
    Or point to a specific data directory:
     ```
-    uv run python -m visar.dashboard <path-to-data-dir>
+    uv run visar-dashboard <path-to-data-dir>
     ```
 
    **Want to see the dashboard before running your own scan?** Point it at the bundled example datasets in `examples/`:
     ```
-    uv run python -m visar.dashboard ../examples
+    uv run visar-dashboard examples
     ```
+
+   > Prefer module form? The package can still be launched directly with `uv run python -m visar.main` / `uv run python -m visar.dashboard` from the `src/` directory.
 
    The dashboard is an ad-hoc step — run scans as many times as needed first, then generate the HTML report when you are ready to review. A single self-contained `visar_dashboard.html` is written to the chosen directory (`data/` by default), embedding all scan datasets. Real scans live in `data/`; the bundled example datasets live in `examples/`, so they never get mixed into a dashboard of your real findings. Use the dropdown to switch between scans, the date filter to narrow by scan date, and the severity pills to focus on the most critical findings. Rows can be expanded to read the full vulnerability detail.
 
@@ -249,7 +249,7 @@ The workflow below aligns with the architecture diagram shown in Figure 3.
 
 The VISaR codebase follows a standard `src/` layout.
 
-- The application code is the `visar` package in `src/visar/`. `main.py` is the scan entry point (run with `python -m visar.main`) and `dashboard.py` is the HTML report entry point (run with `python -m visar.dashboard`).
+- The application code is the `visar` package in `src/visar/`. `main.py` is the scan entry point (exposed as the `visar` command) and `dashboard.py` is the HTML report entry point (exposed as the `visar-dashboard` command). Both console scripts are declared under `[project.scripts]` in `pyproject.toml`.
 
 - The `helpers/` package is a collection of modules, each containing a logical grouping of functions used in the main pipeline. `dashboard_funcs.py` handles all HTML generation and is intentionally separate from the scan pipeline.
 
@@ -271,7 +271,6 @@ The VISaR codebase follows a standard `src/` layout.
 - **Public repos only:** Private repository scanning is not yet supported.
 - **Docker required:** Docker Desktop must be running before executing a scan.
 - **Sequential batch scans:** Repositories in `repos.txt` are scanned one at a time; large batches will take proportionally longer.
-- **`src/` working directory + `-m` required:** Because the code is the `visar` package and uses relative imports, commands are run as modules from `src/` (e.g. `python -m visar.main`, `python -m visar.dashboard`), not as direct script paths. A simpler root-level entry point is planned.
 
 ## 4. Project Status
 

@@ -40,8 +40,9 @@ __pycache__/
 data/*
 !data/.gitkeep
 
-# Demo dashboard generated from the bundled examples — rebuilt on demand
-examples/visar_dashboard.html
+# The demo dashboard built from the bundled examples (examples/visar_dashboard.html)
+# IS committed so users can preview the report without running a scan, so it is
+# deliberately not ignored here.
 
 # Local run logs — keep only example logs in version control
 logs/visar_*.log

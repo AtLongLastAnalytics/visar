@@ -36,14 +36,14 @@ version = "1.2.0"
 description = "Vulnerability Identification, Scanning and Reporting"
 requires-python = ">=3.12"
 dependencies = [
-    "certifi>=2025.1.31",
-    "charset-normalizer>=3.4.1",
+    "certifi>=2026.6.17",
+    "charset-normalizer>=3.4.7",
     "docker>=7.1.0",
-    "idna>=3.10",
-    "python-dotenv>=1.1.0",
-    "pywin32>=310; sys_platform == 'win32'",
-    "requests>=2.32.3",
-    "urllib3>=2.4.0",
+    "idna>=3.18",
+    "python-dotenv>=1.2.2",
+    "pywin32>=312; sys_platform == 'win32'",
+    "requests>=2.34.2",
+    "urllib3>=2.7.0",
 ]
 
 [project.scripts]
@@ -61,7 +61,7 @@ line-length = 88
 
 [dependency-groups]
 dev = [
-    "coverage>=7.0",
-    "ruff>=0.15.7",
+    "coverage>=7.14.3",
+    "ruff>=0.15.20",
 ]
 # uv manages the virtual environment at .venv in the project root
